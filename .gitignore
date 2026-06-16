@@ -1,0 +1,51 @@
+# ========== .NET / C# ==========
+backend/bin/
+backend/obj/
+backend.Tests/bin/
+backend.Tests/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.nupkg
+*.snupkg
+*.vs/
+
+# ========== NODE / FRONTEND ==========
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/*.local
+
+# ========== IDE / EDITORS ==========
+.vscode/
+.vs/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# ========== ENVIRONMENT ==========
+.env
+.env.local
+.env.*.local
+
+# ========== OS / SYSTEM FILES ==========
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ========== LOGS ==========
+*.log
+logs/
+
+# ========== DATA / DATABASE ==========
+data/job-radar-local.db
+data/reports/*.md

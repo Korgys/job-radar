@@ -1,0 +1,12 @@
+Profil candidat fictif pour demonstration.
+
+Developpeur backend C# / .NET avec 3 ans d'experience.
+
+Competences principales :
+C#, .NET, ASP.NET Core, SQL, SQL Server, Azure, Azure DevOps, Git, CI/CD, Docker, React, TypeScript, JavaScript, PowerShell, REST API, WCF, VB.NET.
+
+Experiences :
+- Developpement d'API REST et services ASP.NET Core.
+
+Interets :
+Développement applicatifs, API REST, micro-services
