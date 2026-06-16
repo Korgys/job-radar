@@ -91,6 +91,7 @@ Ne pas inclure :
 7. Le champ `known_stack` doit contenir une liste séparée par `;`.
    Exemple :
    `C#;.NET;Azure;SQL Server;Angular`
+   Chaque valeur individuelle doit faire 30 caractères maximum ; raccourcis ou renomme les valeurs plus longues sans perdre leur sens.
 
 8. Le champ `notes` doit être court et utile.
    Il peut préciser :

@@ -76,7 +76,7 @@ public sealed class CsvImportService
                     EmptyToNull(Field(reader, "career_url")),
                     EmptyToNull(Field(reader, "linkedin_url")),
                     EmptyToNull(Field(reader, "glassdoor_url")),
-                    RadarText.CleanList(Field(reader, "known_stack")),
+                    RadarText.CleanStackList(Field(reader, "known_stack")),
                     EmptyToNull(Field(reader, "notes")),
                     EmptyToNull(Field(reader, "logo_url")));
 
@@ -152,7 +152,7 @@ public sealed class CsvImportService
                     ParseDecimal(Field(reader, "salary_max")),
                     EmptyToNull(Field(reader, "seniority")),
                     EmptyToNull(Field(reader, "job_type")),
-                    RadarText.CleanList(Field(reader, "stack")),
+                    RadarText.CleanStackList(Field(reader, "stack")),
                     EmptyToNull(Field(reader, "description")),
                     url,
                     ParseDate(Field(reader, "publication_date")));

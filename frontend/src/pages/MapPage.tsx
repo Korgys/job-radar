@@ -3,25 +3,29 @@ import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import { api } from '../api';
 import { CompanyDetail } from './CompaniesPage';
+import { JobDetail } from './JobsPage';
 import type { Company, Job } from '../types';
 import { domainColor, formatList, matchesText, normalize, unique } from './shared';
 
 type Filters = {
-  domain: string;
-  city: string;
-  stack: string;
-  jobType: string;
+  domains: string[];
+  stacks: string[];
   seniority: string;
   remote: string;
   minScore: string;
   search: string;
 };
 
+type SectorBounds = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+};
+
 const emptyFilters: Filters = {
-  domain: '',
-  city: '',
-  stack: '',
-  jobType: '',
+  domains: [],
+  stacks: [],
   seniority: '',
   remote: '',
   minScore: '',
@@ -32,8 +36,9 @@ export function MapPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<Company | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [baseLayer, setBaseLayer] = useState<'osm' | 'local'>('osm');
+  const [sectorBounds, setSectorBounds] = useState<SectorBounds | null>(null);
 
   useEffect(() => {
     void load();
@@ -53,13 +58,23 @@ export function MapPage() {
     }, {});
   }, [jobs]);
 
+  const companiesById = useMemo(() => {
+    return companies.reduce<Record<number, Company>>((accumulator, company) => {
+      accumulator[company.id] = company;
+      return accumulator;
+    }, {});
+  }, [companies]);
+
   const filteredCompanies = useMemo(() => {
     return companies.filter((company) => companyMatches(company, jobsByCompany[company.id] ?? [], filters));
   }, [companies, filters, jobsByCompany]);
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => jobMatches(job, filters));
-  }, [jobs, filters]);
+    return jobs
+      .filter((job) => jobMatches(job, filters))
+      .filter((job) => jobInSector(job, companiesById, sectorBounds))
+      .sort(compareJobs);
+  }, [companiesById, jobs, filters, sectorBounds]);
 
   useEffect(() => {
     if (selected && filteredCompanies.some((company) => company.id === selected.id)) {
@@ -69,6 +84,7 @@ export function MapPage() {
   }, [filteredCompanies, selected]);
 
   const markerGroups = useMemo(() => groupCompanies(filteredCompanies), [filteredCompanies]);
+  const sortedCompanies = useMemo(() => [...filteredCompanies].sort(compareCompanies), [filteredCompanies]);
   const center = markerGroups[0] ? [markerGroups[0].lat, markerGroups[0].lng] as [number, number] : [48.5839, 7.7455] as [number, number];
 
   return (
@@ -78,33 +94,28 @@ export function MapPage() {
           <h1>Carte</h1>
           <p className="muted">{filteredCompanies.length} entreprises et {filteredJobs.length} offres après filtres.</p>
         </div>
-        <button type="button" onClick={() => setFilters(emptyFilters)}>Réinitialiser</button>
+        <button type="button" onClick={() => {
+          setFilters(emptyFilters);
+          setSectorBounds(null);
+        }}>Réinitialiser</button>
       </div>
 
       <section className="panel">
         <div className="map-controls">
           <FilterControls filters={filters} setFilters={setFilters} companies={companies} jobs={jobs} />
-          <label className="base-layer-control">
-            Fond de carte
-            <select value={baseLayer} onChange={(event) => setBaseLayer(event.target.value as 'osm' | 'local')}>
-              <option value="osm">OpenStreetMap</option>
-              <option value="local">Local schematique</option>
-            </select>
-          </label>
         </div>
       </section>
 
       <div className="map-layout">
+        <div className="map-main-column">
         <section className="map-shell">
           <MapContainer center={center} zoom={10} scrollWheelZoom>
-            {baseLayer === 'osm' ? (
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-            ) : (
-              <LocalMapLayer />
-            )}
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <ScaleControl />
+            <SectorButton active={Boolean(sectorBounds)} onUpdate={setSectorBounds} />
             {markerGroups.map((group) => (
               <Marker
                 key={group.key}
@@ -114,7 +125,7 @@ export function MapPage() {
               >
                 <Popup>
                   <div className="popup-content">
-                    {group.companies.map((company) => (
+                    {group.companies.slice(0, 5).map((company) => (
                       <div key={company.id}>
                         <strong>{company.name}</strong>
                         <br />
@@ -123,16 +134,21 @@ export function MapPage() {
                         <button type="button" onClick={() => setSelected(company)}>Voir détail</button>
                       </div>
                     ))}
+                    {group.companies.length > 5 && (
+                      <p className="muted popup-more">et {group.companies.length - 5} autres entreprises</p>
+                    )}
                   </div>
                 </Popup>
               </Marker>
             ))}
           </MapContainer>
         </section>
+        {selectedJob && <JobDetail job={selectedJob} />}
+        </div>
 
         <aside className="grid">
           <div className="panel side-list">
-            {filteredCompanies.map((company) => (
+            {sortedCompanies.map((company) => (
               <div key={company.id} className={`list-item ${selected?.id === company.id ? 'selected' : ''}`} onClick={() => setSelected(company)}>
                 <strong>{company.name}</strong>
                 <p>
@@ -156,7 +172,6 @@ export function MapPage() {
                 <th>Titre</th>
                 <th>Entreprise</th>
                 <th>Localisation</th>
-                <th>Type</th>
                 <th>Séniorité</th>
                 <th>Stack</th>
                 <th>Score</th>
@@ -164,11 +179,10 @@ export function MapPage() {
             </thead>
             <tbody>
               {filteredJobs.map((job) => (
-                <tr key={job.id}>
+                <tr key={job.id} className="clickable" onClick={() => setSelectedJob(job)}>
                   <td>{job.url ? <a href={job.url} target="_blank" rel="noreferrer">{job.title}</a> : job.title}</td>
                   <td>{job.companyName}</td>
                   <td>{job.location ?? '-'}</td>
-                  <td>{job.jobType ?? '-'}</td>
                   <td>{job.seniority ?? '-'}</td>
                   <td>{formatList(job.stack)}</td>
                   <td>{job.score?.globalScore ?? '-'}</td>
@@ -195,9 +209,7 @@ function FilterControls({
 }) {
   const options = {
     domains: unique(companies.map((company) => company.domain)),
-    cities: unique(companies.map((company) => company.city).concat(jobs.map((job) => job.location ?? ''))),
     stacks: unique(companies.flatMap((company) => company.knownStack).concat(jobs.flatMap((job) => job.stack))),
-    jobTypes: unique(jobs.map((job) => job.jobType ?? '')),
     seniorities: unique(jobs.map((job) => job.seniority ?? '')),
     remotes: unique(jobs.map((job) => job.remotePolicy ?? ''))
   };
@@ -207,22 +219,108 @@ function FilterControls({
   }
 
   return (
-    <div className="filter-grid">
-      <Select label="Domaine" value={filters.domain} values={options.domains} onChange={(value) => update('domain', value)} />
-      <Select label="Ville" value={filters.city} values={options.cities} onChange={(value) => update('city', value)} />
-      <Select label="Stack" value={filters.stack} values={options.stacks} onChange={(value) => update('stack', value)} />
-      <Select label="Type de poste" value={filters.jobType} values={options.jobTypes} onChange={(value) => update('jobType', value)} />
+    <div className="map-filter-panel">
+      <MultiSelect label="Domaine" values={filters.domains} options={options.domains} colored onChange={(value) => update('domains', value)} />
+      <StackCombo values={filters.stacks} options={options.stacks} onChange={(value) => update('stacks', value)} />
+      <div className="filter-row">
       <Select label="Séniorité" value={filters.seniority} values={options.seniorities} onChange={(value) => update('seniority', value)} />
       <Select label="Télétravail" value={filters.remote} values={options.remotes} onChange={(value) => update('remote', value)} />
       <label>
         Score minimum
         <input type="number" min="0" max="100" value={filters.minScore} onChange={(event) => update('minScore', event.target.value)} />
       </label>
-      <label>
+      <label className="search-filter">
         Recherche
         <input value={filters.search} onChange={(event) => update('search', event.target.value)} placeholder="Nom, offre, stack" />
       </label>
+      </div>
     </div>
+  );
+}
+
+function MultiSelect({
+  label,
+  values,
+  options,
+  colored = false,
+  onChange
+}: {
+  label: string;
+  values: string[];
+  options: string[];
+  colored?: boolean;
+  onChange: (value: string[]) => void;
+}) {
+  function toggle(value: string) {
+    onChange(values.some((item) => normalize(item) === normalize(value)) ? values.filter((item) => normalize(item) !== normalize(value)) : [...values, value]);
+  }
+
+  return (
+    <fieldset className="multi-filter">
+      <legend>{label}</legend>
+      <div className="choice-list">
+        {options.map((item) => {
+          const selected = values.some((value) => normalize(value) === normalize(item));
+          return (
+            <label key={item} className={`choice ${selected ? 'selected' : ''}`}>
+              <input type="checkbox" checked={selected} onChange={() => toggle(item)} />
+              {colored && <span className="domain-dot" style={{ background: domainColor(item) }} />}
+              {item}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+function StackCombo({ values, options, onChange }: { values: string[]; options: string[]; onChange: (value: string[]) => void }) {
+  const [draft, setDraft] = useState('');
+  const suggestions = options
+    .filter((option) => !values.some((value) => normalize(value) === normalize(option)))
+    .filter((option) => !draft || normalize(option).includes(normalize(draft)))
+    .slice(0, 8);
+
+  function add(value: string) {
+    const next = value.trim().slice(0, 30);
+    if (next && !values.some((item) => normalize(item) === normalize(next))) {
+      onChange([...values, next]);
+    }
+    setDraft('');
+  }
+
+  return (
+    <label className="stack-combo">
+      Stack
+      <div className="combo-box">
+        <div className="pill-list">
+          {values.map((item) => (
+            <button key={item} type="button" className="filter-pill" onClick={() => onChange(values.filter((value) => value !== item))}>
+              {item} x
+            </button>
+          ))}
+        </div>
+        <input
+          value={draft}
+          maxLength={30}
+          list="stack-options"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              add(draft);
+            }
+          }}
+          placeholder="Ajouter une stack"
+        />
+        <datalist id="stack-options">
+          {suggestions.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+        <button type="button" onClick={() => add(draft)}>Ajouter</button>
+      </div>
+    </label>
   );
 }
 
@@ -242,11 +340,9 @@ function Select({ label, value, values, onChange }: { label: string; value: stri
 
 function companyMatches(company: Company, companyJobs: Job[], filters: Filters) {
   const minScore = Number(filters.minScore || 0);
-  if (filters.domain && normalize(company.domain) !== normalize(filters.domain)) return false;
-  if (filters.city && normalize(company.city) !== normalize(filters.city)) return false;
+  if (filters.domains.length > 0 && !filters.domains.some((domain) => normalize(company.domain) === normalize(domain))) return false;
   if (filters.minScore && (company.score?.globalScore ?? 0) < minScore) return false;
-  if (filters.stack && !includesValue(company.knownStack, filters.stack) && !companyJobs.some((job) => includesValue(job.stack, filters.stack))) return false;
-  if (filters.jobType && !companyJobs.some((job) => normalize(job.jobType) === normalize(filters.jobType))) return false;
+  if (filters.stacks.length > 0 && !filters.stacks.every((stack) => includesValue(company.knownStack, stack) || companyJobs.some((job) => includesValue(job.stack, stack)))) return false;
   if (filters.seniority && !companyJobs.some((job) => normalize(job.seniority) === normalize(filters.seniority))) return false;
   if (filters.remote && !companyJobs.some((job) => normalize(job.remotePolicy) === normalize(filters.remote))) return false;
   if (filters.search && !matchesText(filters.search, company.name, company.city, company.domain, company.knownStack.join(' '), company.notes ?? '', companyJobs.map((job) => `${job.title} ${job.stack.join(' ')}`).join(' '))) return false;
@@ -255,15 +351,37 @@ function companyMatches(company: Company, companyJobs: Job[], filters: Filters) 
 
 function jobMatches(job: Job, filters: Filters) {
   const minScore = Number(filters.minScore || 0);
-  if (filters.domain && normalize(job.companyDomain) !== normalize(filters.domain)) return false;
-  if (filters.city && normalize(job.location) !== normalize(filters.city)) return false;
+  if (filters.domains.length > 0 && !filters.domains.some((domain) => normalize(job.companyDomain) === normalize(domain))) return false;
   if (filters.minScore && (job.score?.globalScore ?? 0) < minScore) return false;
-  if (filters.stack && !includesValue(job.stack, filters.stack)) return false;
-  if (filters.jobType && normalize(job.jobType) !== normalize(filters.jobType)) return false;
+  if (filters.stacks.length > 0 && !filters.stacks.every((stack) => includesValue(job.stack, stack))) return false;
   if (filters.seniority && normalize(job.seniority) !== normalize(filters.seniority)) return false;
   if (filters.remote && normalize(job.remotePolicy) !== normalize(filters.remote)) return false;
   if (filters.search && !matchesText(filters.search, job.title, job.companyName, job.location ?? '', job.jobType ?? '', job.stack.join(' '), job.description ?? '')) return false;
   return true;
+}
+
+function jobInSector(job: Job, companiesById: Record<number, Company>, bounds: SectorBounds | null) {
+  if (!bounds) {
+    return true;
+  }
+
+  const company = companiesById[job.companyId];
+  if (company?.latitude == null || company.longitude == null) {
+    return false;
+  }
+
+  return company.latitude <= bounds.north
+    && company.latitude >= bounds.south
+    && company.longitude <= bounds.east
+    && company.longitude >= bounds.west;
+}
+
+function compareCompanies(left: Company, right: Company) {
+  return (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0) || right.jobCount - left.jobCount;
+}
+
+function compareJobs(left: Job, right: Job) {
+  return (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0);
 }
 
 function includesValue(values: string[], expected: string) {
@@ -302,128 +420,39 @@ function markerIcon(color: string, count: number) {
   });
 }
 
-function LocalMapLayer() {
+function SectorButton({ active, onUpdate }: { active: boolean; onUpdate: (bounds: SectorBounds) => void }) {
+  const map = useMap();
+
+  function updateSector() {
+    const bounds = map.getBounds();
+    onUpdate({
+      north: bounds.getNorth(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      west: bounds.getWest()
+    });
+  }
+
+  return (
+    <div className="map-sector-action leaflet-control">
+      <button type="button" className={active ? 'active' : ''} onClick={updateSector}>
+        Actualiser les offres du secteur
+      </button>
+    </div>
+  );
+}
+
+function ScaleControl() {
   const map = useMap();
 
   useEffect(() => {
-    const layer = new LocalCanvasLayer({ attribution: 'Fond local' });
-    layer.addTo(map);
-    layer.bringToBack();
+    const control = L.control.scale({ imperial: false, metric: true });
+    control.addTo(map);
 
     return () => {
-      layer.remove();
+      control.remove();
     };
   }, [map]);
 
   return null;
-}
-
-class LocalCanvasLayer extends L.GridLayer {
-  createTile(coords: L.Coords): HTMLElement {
-    const tile = document.createElement('canvas');
-    const size = this.getTileSize();
-    tile.width = size.x;
-    tile.height = size.y;
-
-    const context = tile.getContext('2d');
-    if (!context) {
-      return tile;
-    }
-
-    drawBackground(context, size);
-    drawRhine(context, this, coords, size);
-    drawCityLabels(context, this, coords, size);
-    return tile;
-  }
-}
-
-function drawBackground(context: CanvasRenderingContext2D, size: L.Point) {
-  context.fillStyle = '#edf3f2';
-  context.fillRect(0, 0, size.x, size.y);
-
-  context.strokeStyle = '#d6e2e1';
-  context.lineWidth = 1;
-  for (let position = 0; position <= size.x; position += 64) {
-    context.beginPath();
-    context.moveTo(position, 0);
-    context.lineTo(position, size.y);
-    context.stroke();
-  }
-  for (let position = 0; position <= size.y; position += 64) {
-    context.beginPath();
-    context.moveTo(0, position);
-    context.lineTo(size.x, position);
-    context.stroke();
-  }
-
-  context.strokeStyle = '#c8d7d4';
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(-20, size.y * 0.78);
-  context.bezierCurveTo(size.x * 0.18, size.y * 0.45, size.x * 0.5, size.y * 0.62, size.x + 20, size.y * 0.25);
-  context.stroke();
-}
-
-function drawRhine(context: CanvasRenderingContext2D, layer: L.GridLayer, coords: L.Coords, size: L.Point) {
-  const points = [
-    L.latLng(49.02, 8.2),
-    L.latLng(48.8, 8.08),
-    L.latLng(48.62, 7.86),
-    L.latLng(48.45, 7.78),
-    L.latLng(48.28, 7.7)
-  ].map((latLng) => projectPoint(layer, coords, size, latLng));
-
-  context.strokeStyle = '#8dc6d1';
-  context.lineWidth = 5;
-  context.beginPath();
-  points.forEach((point, index) => {
-    if (index === 0) {
-      context.moveTo(point.x, point.y);
-    } else {
-      context.lineTo(point.x, point.y);
-    }
-  });
-  context.stroke();
-}
-
-function drawCityLabels(context: CanvasRenderingContext2D, layer: L.GridLayer, coords: L.Coords, size: L.Point) {
-  const cities = [
-    { name: 'Strasbourg', lat: 48.5846, lng: 7.7507 },
-    { name: 'Schiltigheim', lat: 48.6079, lng: 7.7484 },
-    { name: 'Obernai', lat: 48.4598, lng: 7.4826 },
-    { name: 'Benfeld', lat: 48.3707, lng: 7.5936 },
-    { name: 'Fegersheim', lat: 48.4908, lng: 7.6754 },
-    { name: 'Haguenau', lat: 48.8156, lng: 7.7886 }
-  ];
-
-  context.font = '600 13px Inter, system-ui, sans-serif';
-  context.textBaseline = 'middle';
-
-  for (const city of cities) {
-    const point = projectPoint(layer, coords, size, L.latLng(city.lat, city.lng));
-    if (point.x < -60 || point.x > size.x + 60 || point.y < -30 || point.y > size.y + 30) {
-      continue;
-    }
-
-    context.fillStyle = '#6f838b';
-    context.beginPath();
-    context.arc(point.x, point.y, 3, 0, Math.PI * 2);
-    context.fill();
-
-    context.fillStyle = 'rgba(255, 255, 255, 0.82)';
-    const width = context.measureText(city.name).width + 12;
-    context.fillRect(point.x + 7, point.y - 10, width, 20);
-
-    context.fillStyle = '#33444c';
-    context.fillText(city.name, point.x + 13, point.y);
-  }
-}
-
-function projectPoint(layer: L.GridLayer, coords: L.Coords, size: L.Point, latLng: L.LatLng) {
-  const map = (layer as L.GridLayer & { _map: L.Map })._map;
-  const point = map.project(latLng, coords.z);
-  return {
-    x: point.x - coords.x * size.x,
-    y: point.y - coords.y * size.y
-  };
 }

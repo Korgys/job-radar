@@ -46,9 +46,16 @@ a {
   min-height: 100vh;
 }
 
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+
 .sidebar {
   background: #101820;
   color: white;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
   padding: 1.1rem;
 }
 
@@ -57,6 +64,7 @@ a {
   display: flex;
   gap: 0.75rem;
   margin-bottom: 1.4rem;
+  order: 1;
 }
 
 .brand-mark {
@@ -75,14 +83,30 @@ a {
   display: block;
 }
 
+.sidebar-toggle {
+  align-items: center;
+  background: #23313c;
+  display: inline-flex;
+  height: 38px;
+  justify-content: center;
+  margin-top: auto;
+  padding: 0;
+  order: 3;
+  width: 38px;
+}
+
 .sidebar nav {
   display: grid;
   gap: 0.35rem;
+  order: 2;
 }
 
 .sidebar a {
+  align-items: center;
   border-radius: 6px;
   color: #d8e2e8;
+  display: flex;
+  gap: 0.65rem;
   padding: 0.65rem 0.75rem;
   text-decoration: none;
 }
@@ -91,6 +115,31 @@ a {
 .sidebar a:hover {
   background: #23313c;
   color: white;
+}
+
+.nav-icon {
+  fill: currentColor;
+  flex: 0 0 auto;
+  height: 20px;
+  width: 20px;
+}
+
+.sidebar-collapsed .sidebar {
+  padding: 1rem 0.8rem;
+}
+
+.sidebar-collapsed .brand {
+  justify-content: center;
+}
+
+.sidebar-collapsed .brand-text,
+.sidebar-collapsed .sidebar a span {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar a,
+.sidebar-collapsed .sidebar-toggle {
+  justify-content: center;
 }
 
 .content {
@@ -164,8 +213,31 @@ a {
   gap: 0.85rem;
 }
 
+.map-filter-panel {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 1fr);
+}
+
+.filter-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(150px, 220px)) minmax(240px, 1fr);
+}
+
+.search-filter {
+  min-width: 240px;
+}
+
 .base-layer-control {
   max-width: 260px;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
 }
 
 label {
@@ -183,6 +255,78 @@ textarea {
   color: #17202a;
   min-height: 38px;
   padding: 0.45rem 0.55rem;
+}
+
+.multi-filter,
+.stack-combo {
+  color: #42525d;
+  display: grid;
+  font-size: 0.86rem;
+  gap: 0.28rem;
+}
+
+.multi-filter legend {
+  margin-bottom: 0.28rem;
+}
+
+.choice-list {
+  background: #f8fbfc;
+  border: 1px solid #dbe6ea;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 44px;
+  padding: 0.45rem;
+}
+
+.choice {
+  align-items: center;
+  background: white;
+  border: 1px solid #d7e2e6;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.25rem;
+  min-height: 30px;
+  padding: 0.2rem 0.55rem;
+}
+
+.choice input {
+  display: none;
+}
+
+.choice.selected {
+  background: #e6f5f6;
+  border-color: #1d6f7a;
+  color: #17202a;
+}
+
+.combo-box {
+  background: #f8fbfc;
+  border: 1px solid #dbe6ea;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.45rem;
+}
+
+.combo-box input {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.combo-box button {
+  min-height: 38px;
+  width: fit-content;
+}
+
+.filter-pill {
+  background: #eef3f4;
+  color: #31414b;
+  font-size: 0.8rem;
+  padding: 0.24rem 0.5rem;
 }
 
 textarea {
@@ -259,6 +403,12 @@ tr.clickable:hover {
   grid-template-columns: minmax(420px, 1fr) 390px;
 }
 
+.map-main-column {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
 .map-shell {
   min-height: 600px;
 }
@@ -294,6 +444,37 @@ tr.clickable:hover {
 
 .radar-marker span b {
   transform: rotate(45deg);
+}
+
+.popup-content {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.popup-more {
+  margin: 0.2rem 0 0;
+}
+
+.map-sector-action {
+  bottom: 14px;
+  left: 50%;
+  margin-left: 0;
+  pointer-events: auto;
+  position: absolute;
+  transform: translateX(-50%);
+  z-index: 500;
+}
+
+.map-sector-action button {
+  background: #ffffff;
+  border: 1px solid #1d6f7a;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  color: #145e68;
+}
+
+.map-sector-action button.active {
+  background: #1d6f7a;
+  color: white;
 }
 
 .side-list {
@@ -373,12 +554,22 @@ tr.clickable:hover {
     grid-template-columns: 1fr;
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar {
+    min-height: auto;
     position: static;
   }
 
   .sidebar nav {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sidebar-collapsed .brand-text,
+  .sidebar-collapsed .sidebar a span {
+    display: block;
   }
 
   .grid.two,
@@ -389,6 +580,11 @@ tr.clickable:hover {
 
   .filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .map-filter-panel,
+  .filter-row {
+    grid-template-columns: 1fr;
   }
 }
 

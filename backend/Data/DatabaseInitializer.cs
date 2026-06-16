@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using JobRadarLocal.Services;
 
 namespace JobRadarLocal.Data;
 
@@ -123,5 +124,42 @@ public sealed class DatabaseInitializer
             );
             """;
         command.ExecuteNonQuery();
+        NormalizeExistingStacks(connection);
+    }
+
+    private static void NormalizeExistingStacks(SqliteConnection connection)
+    {
+        NormalizeColumn(connection, "companies", "known_stack");
+        NormalizeColumn(connection, "jobs", "stack");
+    }
+
+    private static void NormalizeColumn(SqliteConnection connection, string table, string column)
+    {
+        using var select = connection.CreateCommand();
+        select.CommandText = $"SELECT id, {column} FROM {table};";
+
+        var updates = new List<(int Id, string Value)>();
+        using (var reader = select.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                var id = reader.GetInt32(0);
+                var value = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                var normalized = RadarText.CleanStackList(value);
+                if (!string.Equals(value, normalized, StringComparison.Ordinal))
+                {
+                    updates.Add((id, normalized));
+                }
+            }
+        }
+
+        foreach (var update in updates)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"UPDATE {table} SET {column} = $value WHERE id = $id;";
+            command.Parameters.AddWithValue("$value", update.Value);
+            command.Parameters.AddWithValue("$id", update.Id);
+            command.ExecuteNonQuery();
+        }
     }
 }

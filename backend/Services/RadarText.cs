@@ -5,6 +5,8 @@ namespace JobRadarLocal.Services;
 
 public static class RadarText
 {
+    public const int MaxStackItemLength = 30;
+
     public static IReadOnlyList<string> SplitList(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -57,5 +59,10 @@ public static class RadarText
     public static string CleanList(string? value)
     {
         return JoinList(SplitList(value));
+    }
+
+    public static string CleanStackList(string? value)
+    {
+        return JoinList(SplitList(value).Select(item => item.Length > MaxStackItemLength ? item[..MaxStackItemLength] : item));
     }
 }

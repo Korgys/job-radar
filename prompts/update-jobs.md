@@ -31,6 +31,7 @@ CONTRAINTES IMPORTANTES
 - Respecte un CSV valide RFC 4180 : entoure de guillemets les champs contenant virgules, guillemets ou retours à la ligne.
 - Évite les descriptions longues : 1 à 2 phrases maximum.
 - Pour stack, utilise des technologies séparées par des points-virgules, par exemple : "C#;.NET;Azure;SQL;Angular".
+- Chaque valeur individuelle de stack doit faire 30 caractères maximum ; raccourcis ou renomme les valeurs plus longues sans perdre leur sens.
 - Ne mets aucun commentaire hors du bloc CSV.
 - Ne retourne pas de markdown explicatif, uniquement le bloc CSV.
 

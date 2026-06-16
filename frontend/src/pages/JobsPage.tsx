@@ -33,9 +33,11 @@ export function JobsPage() {
   }
 
   const filtered = useMemo(() => {
-    return jobs.filter((job) =>
-      matchesText(search, job.title, job.companyName, job.location ?? '', job.jobType ?? '', job.stack.join(' '), job.description ?? '')
-    );
+    return jobs
+      .filter((job) =>
+        matchesText(search, job.title, job.companyName, job.location ?? '', job.jobType ?? '', job.stack.join(' '), job.description ?? '')
+      )
+      .sort((left, right) => (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0));
   }, [jobs, search]);
 
   return (
@@ -50,7 +52,7 @@ export function JobsPage() {
 
       {message && <p className="status">{message}</p>}
 
-      <div className="grid two">
+      <div className="grid">
         <section className="grid">
           <ImportBox accept=".csv,text/csv" label="Importer jobs.csv" onUpload={api.uploadJobs} onDone={() => void load()} />
           <div className="panel">
@@ -91,8 +93,9 @@ export function JobsPage() {
           </div>
         </section>
 
-        <JobDetail job={selected} />
       </div>
+
+      <JobDetail job={selected} />
     </>
   );
 }
