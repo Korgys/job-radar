@@ -67,6 +67,29 @@ La base SQLite locale est creee automatiquement dans :
 data/job-radar-local.db
 ```
 
+## Prompt de recherche entreprises
+
+Les prompts du dossier `prompts/` servent a generer ou completer les CSV importables.
+
+### Entreprises
+
+Le prompt `prompts/update-companies.md` sert a generer ou completer le CSV entreprises.
+
+1. Remplacer `{{VILLE}}` par la ville cible.
+2. Remplacer `{{RAYON_KM}}` par le rayon de recherche.
+3. Remplacer `{{CSV_EXISTANT}}` par le contenu actuel du CSV, ou laisser vide.
+4. Importer le CSV obtenu depuis la page `/companies`.
+
+### Offres
+
+Le prompt `prompts/update-jobs.md` sert a synchroniser le CSV offres.
+
+1. Remplacer `{{VILLE}}` par la ville cible.
+2. Remplacer `{{RAYON_KM}}` par le rayon de recherche.
+3. Remplacer `{{CV_CANDIDAT}}` par le CV, ou laisser vide.
+4. Remplacer `{{CSV_EXISTANT}}` par le contenu actuel du CSV, ou laisser vide.
+5. Importer le CSV obtenu depuis la page `/jobs`.
+
 ## Formats CSV
 
 ### Entreprises
@@ -127,5 +150,8 @@ data/
     jobs.sample.csv
     cv.sample.txt
   reports/
+prompts/
+  update-companies.md
+  update-jobs.md
 README.md
 ```
