@@ -26,27 +26,36 @@ export function CompaniesPage() {
     );
   }, [companies, search]);
 
+  const resultText = search.trim()
+    ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} sur ${companies.length}`
+    : `${companies.length} entreprise${companies.length > 1 ? 's' : ''}`;
+
   return (
-    <>
-      <div className="page-header">
+    <div className="companies-page">
+      <div className="page-header companies-header">
         <div>
           <h1>Entreprises</h1>
-          <p className="muted">{filtered.length} entreprises suivies.</p>
+          <p className="muted">
+            {companies.length} entreprise{companies.length > 1 ? 's' : ''} suivie{companies.length > 1 ? 's' : ''}
+            {search.trim() ? ` · ${filtered.length} visible${filtered.length > 1 ? 's' : ''}` : ''}
+          </p>
         </div>
       </div>
 
       <ImportBox accept=".csv" label="Importer des entreprises CSV" onUpload={api.uploadCompanies} onDone={load} />
 
-      <div className="grid two">
-        <section className="panel">
-          <div className="toolbar">
-            <label>
+      <div className="companies-layout">
+        <section className="panel companies-table-panel">
+          <div className="companies-toolbar">
+            <label className="companies-search">
               Rechercher
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nom, ville, domaine, stack" />
             </label>
+            <p className="muted companies-result-count">{resultText}</p>
           </div>
-          <div className="table-wrap">
-            <table>
+
+          <div className="table-wrap companies-table-wrap">
+            <table className="companies-table">
               <thead>
                 <tr>
                   <th>Nom</th>
@@ -59,16 +68,25 @@ export function CompaniesPage() {
               </thead>
               <tbody>
                 {filtered.map((company) => (
-                  <tr key={company.id} className="clickable" onClick={() => setSelected(company)}>
-                    <td>{company.name}</td>
+                  <tr
+                    key={company.id}
+                    className={`clickable ${selected?.id === company.id ? 'selected' : ''}`}
+                    onClick={() => setSelected(company)}
+                  >
+                    <td className="company-name-cell">{company.name}</td>
                     <td>
-                      <span className="domain-dot" style={{ background: domainColor(company.domain) }} />
-                      {company.domain}
+                      <DomainBadge domain={company.domain} />
                     </td>
-                    <td>{company.city}</td>
-                    <td>{formatList(company.knownStack)}</td>
-                    <td>{company.jobCount}</td>
-                    <td>{company.score?.globalScore ?? '-'}</td>
+                    <td>{company.city || 'Non renseigné'}</td>
+                    <td>
+                      <StackPreview values={company.knownStack} />
+                    </td>
+                    <td className="numeric-cell">
+                      <OfferCount count={company.jobCount} />
+                    </td>
+                    <td className="numeric-cell">
+                      <span className="table-score-value">{company.score?.globalScore ?? '-'}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -78,40 +96,40 @@ export function CompaniesPage() {
 
         <CompanyDetail company={selected} />
       </div>
-    </>
+    </div>
   );
 }
 
 export function CompanyDetail({ company }: { company: Company | null }) {
   if (!company) {
-    return <aside className="panel muted">Aucune entreprise sélectionnée.</aside>;
+    return (
+      <aside className="panel company-detail-card company-detail-empty">
+        <p className="muted">Sélectionnez une entreprise pour voir le détail.</p>
+      </aside>
+    );
   }
 
   return (
     <aside className="panel company-detail-card">
       <CompanyDetailHeader company={company} />
-      <div className="company-detail-layout">
-        <div className="company-detail-main">
-          <DetailSection title="Domaines secondaires">
-            <InfoChips values={company.secondaryDomains} />
-          </DetailSection>
-          <DetailSection title="Stack connue">
-            <InfoChips values={company.knownStack} />
-          </DetailSection>
-          <DetailSection title="Notes">
-            <p className="detail-note">{company.notes || 'Aucune note renseignée.'}</p>
-          </DetailSection>
-          <AnalysisQuick score={company.score} />
-        </div>
-        <div className="company-detail-side">
-          <ScoreBreakdown score={company.score} />
-          <DetailSection title="Offres liées">
-            <p className="linked-jobs">
-              {company.jobCount > 0 ? `${company.jobCount} offre${company.jobCount > 1 ? 's' : ''}` : 'Aucune offre liée détectée pour le moment.'}
-            </p>
-          </DetailSection>
-          <CompanyLinks company={company} />
-        </div>
+      <div className="company-detail-sections">
+        <ScoreBreakdown score={company.score} />
+        <DetailSection title="Domaines secondaires">
+          <InfoChips values={company.secondaryDomains} />
+        </DetailSection>
+        <DetailSection title="Stack connue">
+          <InfoChips values={company.knownStack} limit={8} />
+        </DetailSection>
+        <DetailSection title="Offres liées">
+          <p className="linked-jobs">
+            {company.jobCount > 0 ? `${company.jobCount} offre${company.jobCount > 1 ? 's' : ''}` : 'Aucune offre liée détectée pour le moment.'}
+          </p>
+        </DetailSection>
+        <CompanyLinks company={company} />
+        <DetailSection title="Notes">
+          <p className="detail-note">{company.notes || 'Aucune note renseignée.'}</p>
+        </DetailSection>
+        <AnalysisQuick score={company.score} />
       </div>
     </aside>
   );
@@ -129,29 +147,63 @@ function CompanyDetailHeader({ company }: { company: Company }) {
         <div>
           <h2>{company.name}</h2>
           <p>
-            <span className="domain-dot" style={{ background: domainColor(company.domain) }} />
-            {company.domain} · {company.city}
+            <DomainBadge domain={company.domain} /> <span className="detail-location">{company.city || 'Non renseigné'}</span>
           </p>
         </div>
       </div>
-      <ScoreBadge score={company.score} />
+      <CompanyPriorityBadge score={company.score} />
     </div>
   );
 }
 
-function ScoreBadge({ score }: { score?: Score | null }) {
+function CompanyPriorityBadge({ score, compact = false }: { score?: Score | null; compact?: boolean }) {
   if (!score) {
-    return <div className="score-badge score-empty">Score non calculé</div>;
+    return <div className={`priority-badge priority-empty ${compact ? 'priority-compact' : ''}`}>Priorité non calculée</div>;
   }
 
-  const level = scoreLevel(score.globalScore);
+  const level = priorityLevel(score.globalScore);
 
   return (
-    <div className={`score-badge score-${level.key}`}>
-      <strong>{score.globalScore}/100</strong>
-      <span>{level.label}</span>
+    <div className={`priority-badge priority-${level.key} ${compact ? 'priority-compact' : ''}`} title={`${level.label} · ${score.globalScore}`}>
+      <strong>{compact ? level.shortLabel : level.label}</strong>
+      <span>{score.globalScore}</span>
     </div>
   );
+}
+
+function DomainBadge({ domain }: { domain: string }) {
+  if (!domain) {
+    return <span className="domain-badge muted">Non renseigné</span>;
+  }
+
+  return (
+    <span className="domain-badge" title={domain}>
+      <span className="domain-dot" style={{ background: domainColor(domain) }} />
+      <span>{domain}</span>
+    </span>
+  );
+}
+
+function StackPreview({ values }: { values: string[] }) {
+  if (values.length === 0) {
+    return <span className="muted">Non renseigné</span>;
+  }
+
+  const visible = values.slice(0, 3);
+  const hidden = values.length - visible.length;
+
+  return (
+    <span className="stack-preview" title={formatList(values)}>
+      {visible.map((value) => (
+        <span key={value} className="stack-chip">{value}</span>
+      ))}
+      {hidden > 0 && <span className="stack-more">+{hidden}</span>}
+    </span>
+  );
+}
+
+function OfferCount({ count }: { count: number }) {
+  return <span className={count > 0 ? 'offer-count has-offers' : 'offer-count'}>{count}</span>;
 }
 
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
@@ -163,16 +215,20 @@ function DetailSection({ title, children }: { title: string; children: ReactNode
   );
 }
 
-function InfoChips({ values }: { values: string[] }) {
+function InfoChips({ values, limit }: { values: string[]; limit?: number }) {
   if (values.length === 0) {
     return <p className="muted detail-empty">Non renseigné</p>;
   }
 
+  const visible = limit ? values.slice(0, limit) : values;
+  const hidden = values.length - visible.length;
+
   return (
     <div className="info-chip-list">
-      {values.map((value) => (
+      {visible.map((value) => (
         <span key={value} className="info-chip">{value}</span>
       ))}
+      {hidden > 0 && <span className="info-chip info-chip-more">+{hidden}</span>}
     </div>
   );
 }
@@ -217,6 +273,7 @@ function ScoreBreakdown({ score }: { score?: Score | null }) {
 
   return (
     <DetailSection title="Détail du score">
+      <p className="muted score-help">Ce score sert à prioriser les entreprises selon les données disponibles.</p>
       <div className="score-breakdown">
         {items.map(([label, value]) => (
           <div key={label} className="score-row">
@@ -268,11 +325,12 @@ function ReasonList({ title, values, tone }: { title: string; values: string[]; 
   );
 }
 
-function scoreLevel(score: number) {
-  if (score >= 80) return { key: 'great', label: 'Très bonne compatibilité' };
-  if (score >= 60) return { key: 'good', label: 'Bonne compatibilité' };
-  if (score >= 30) return { key: 'medium', label: 'Compatibilité moyenne' };
-  return { key: 'low', label: 'Compatibilité faible' };
+function priorityLevel(score: number) {
+  if (score >= 80) return { key: 'top', label: 'Cible forte', shortLabel: 'Forte' };
+  if (score >= 60) return { key: 'high', label: 'Entreprise prioritaire', shortLabel: 'Prioritaire' };
+  if (score >= 40) return { key: 'correct', label: 'Potentiel correct', shortLabel: 'Correct' };
+  if (score >= 20) return { key: 'watch', label: 'Entreprise à surveiller', shortLabel: 'Surveiller' };
+  return { key: 'low', label: 'Priorité actuelle faible', shortLabel: 'Faible' };
 }
 
 function initials(name: string) {

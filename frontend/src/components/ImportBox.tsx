@@ -46,6 +46,7 @@ export function ImportBox<T>({ accept, label, onUpload, onDone }: ImportBoxProps
           {label}
           <input ref={inputRef} type="file" accept={accept} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         </label>
+        <span className="selected-file">{file ? file.name : 'Aucun fichier choisi'}</span>
         <button type="button" onClick={submit} disabled={loading}>
           {loading ? 'Import...' : 'Importer'}
         </button>
