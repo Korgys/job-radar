@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import { api } from '../api';
@@ -28,7 +29,7 @@ const emptyFilters: Filters = {
   stacks: [],
   seniority: '',
   remote: '',
-  minScore: '',
+  minScore: '0',
   search: ''
 };
 
@@ -146,21 +147,22 @@ export function MapPage() {
         {selectedJob && <JobDetail job={selectedJob} />}
         </div>
 
-        <aside className="grid">
-          <div className="panel side-list">
-            {sortedCompanies.map((company) => (
-              <div key={company.id} className={`list-item ${selected?.id === company.id ? 'selected' : ''}`} onClick={() => setSelected(company)}>
-                <strong>{company.name}</strong>
-                <p>
-                  <span className="domain-dot" style={{ background: domainColor(company.domain) }} />
-                  {company.domain} · {company.city}
-                </p>
-                <p className="muted">{company.jobCount} offres · score {company.score?.globalScore ?? '-'}</p>
-              </div>
-            ))}
-          </div>
-          <CompanyDetail company={selected} />
+        <aside className="panel side-list">
+          {sortedCompanies.map((company) => (
+            <div key={company.id} className={`list-item ${selected?.id === company.id ? 'selected' : ''}`} onClick={() => setSelected(company)}>
+              <strong>{company.name}</strong>
+              <p>
+                <span className="domain-dot" style={{ background: domainColor(company.domain) }} />
+                {company.domain} · {company.city}
+              </p>
+              <p className="muted">{company.jobCount} offres · score {company.score?.globalScore ?? '-'}</p>
+            </div>
+          ))}
         </aside>
+      </div>
+
+      <div className="map-detail-wide">
+        <CompanyDetail company={selected} />
       </div>
 
       <section className="panel">
@@ -220,35 +222,25 @@ function FilterControls({
 
   return (
     <div className="map-filter-panel">
-      <MultiSelect label="Domaine" values={filters.domains} options={options.domains} colored onChange={(value) => update('domains', value)} />
-      <StackCombo values={filters.stacks} options={options.stacks} onChange={(value) => update('stacks', value)} />
+      <DomainFilterChips values={filters.domains} options={options.domains} onChange={(value) => update('domains', value)} />
+      <StackFilterInput values={filters.stacks} options={options.stacks} onChange={(value) => update('stacks', value)} />
       <div className="filter-row">
       <Select label="Séniorité" value={filters.seniority} values={options.seniorities} onChange={(value) => update('seniority', value)} />
       <Select label="Télétravail" value={filters.remote} values={options.remotes} onChange={(value) => update('remote', value)} />
-      <label>
-        Score minimum
-        <input type="number" min="0" max="100" value={filters.minScore} onChange={(event) => update('minScore', event.target.value)} />
-      </label>
-      <label className="search-filter">
-        Recherche
-        <input value={filters.search} onChange={(event) => update('search', event.target.value)} placeholder="Nom, offre, stack" />
-      </label>
+      <ScoreStepper value={filters.minScore} onChange={(value) => update('minScore', value)} />
+      <SearchFilter value={filters.search} onChange={(value) => update('search', value)} />
       </div>
     </div>
   );
 }
 
-function MultiSelect({
-  label,
+function DomainFilterChips({
   values,
   options,
-  colored = false,
   onChange
 }: {
-  label: string;
   values: string[];
   options: string[];
-  colored?: boolean;
   onChange: (value: string[]) => void;
 }) {
   function toggle(value: string) {
@@ -257,14 +249,15 @@ function MultiSelect({
 
   return (
     <fieldset className="multi-filter">
-      <legend>{label}</legend>
+      <legend>Domaine</legend>
       <div className="choice-list">
         {options.map((item) => {
           const selected = values.some((value) => normalize(value) === normalize(item));
           return (
-            <label key={item} className={`choice ${selected ? 'selected' : ''}`}>
+            <label key={item} className={`choice domain-choice ${selected ? 'selected' : ''}`} style={{ '--domain-color': domainColor(item) } as CSSProperties}>
               <input type="checkbox" checked={selected} onChange={() => toggle(item)} />
-              {colored && <span className="domain-dot" style={{ background: domainColor(item) }} />}
+              <span className="domain-dot" style={{ background: domainColor(item) }} />
+              {selected && <span className="choice-check">✓</span>}
               {item}
             </label>
           );
@@ -274,7 +267,7 @@ function MultiSelect({
   );
 }
 
-function StackCombo({ values, options, onChange }: { values: string[]; options: string[]; onChange: (value: string[]) => void }) {
+function StackFilterInput({ values, options, onChange }: { values: string[]; options: string[]; onChange: (value: string[]) => void }) {
   const [draft, setDraft] = useState('');
   const suggestions = options
     .filter((option) => !values.some((value) => normalize(value) === normalize(option)))
@@ -295,8 +288,9 @@ function StackCombo({ values, options, onChange }: { values: string[]; options: 
       <div className="combo-box">
         <div className="pill-list">
           {values.map((item) => (
-            <button key={item} type="button" className="filter-pill" onClick={() => onChange(values.filter((value) => value !== item))}>
-              {item} x
+            <button key={item} type="button" className="filter-pill stack-pill" onClick={() => onChange(values.filter((value) => normalize(value) !== normalize(item)))} aria-label={`Retirer ${item}`}>
+              <span>{item}</span>
+              <span aria-hidden="true">×</span>
             </button>
           ))}
         </div>
@@ -322,6 +316,45 @@ function StackCombo({ values, options, onChange }: { values: string[]; options: 
       </div>
     </label>
   );
+}
+
+function ScoreStepper({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const score = clampScore(Number(value || 0));
+
+  function update(delta: number) {
+    onChange(String(clampScore(score + delta)));
+  }
+
+  return (
+    <div className="score-stepper-field">
+      <span>Score minimum</span>
+      <div className="score-stepper" role="group" aria-label="Score minimum">
+        <button type="button" onClick={() => update(-5)} disabled={score <= 0}>-</button>
+        <strong>{score}</strong>
+        <button type="button" onClick={() => update(5)} disabled={score >= 100}>+</button>
+      </div>
+    </div>
+  );
+}
+
+function SearchFilter({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="search-filter">
+      Recherche
+      <div className="search-box">
+        <input value={value} onChange={(event) => onChange(event.target.value)} placeholder="Nom, entreprise, offre, stack" />
+        {value && <button type="button" onClick={() => onChange('')} aria-label="Vider la recherche">×</button>}
+      </div>
+    </label>
+  );
+}
+
+function clampScore(value: number) {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Math.round(value / 5) * 5));
 }
 
 function Select({ label, value, values, onChange }: { label: string; value: string; values: string[]; onChange: (value: string) => void }) {
