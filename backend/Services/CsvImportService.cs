@@ -74,10 +74,38 @@ public sealed class CsvImportService
                     continue;
                 }
 
-                if (!TryParseDouble(latitudeText, out var latitude) || !TryParseDouble(longitudeText, out var longitude))
+                if (!TryParseDouble(latitudeText, out var latitude))
                 {
                     skipped++;
-                    errors.Add(new ImportErrorDto(row, "Les colonnes latitude et longitude doivent être numériques."));
+                    errors.Add(new ImportErrorDto(row, "Champ latitude : la valeur doit être numérique."));
+                    continue;
+                }
+
+                if (!TryParseDouble(longitudeText, out var longitude))
+                {
+                    skipped++;
+                    errors.Add(new ImportErrorDto(row, "Champ longitude : la valeur doit être numérique."));
+                    continue;
+                }
+
+                var website = EmptyToNull(Field(reader, "website"));
+                var careerUrl = EmptyToNull(Field(reader, "career_url"));
+                var linkedinUrl = EmptyToNull(Field(reader, "linkedin_url"));
+                var glassdoorUrl = EmptyToNull(Field(reader, "glassdoor_url"));
+                var logoUrl = EmptyToNull(Field(reader, "logo_url"));
+                var fieldValidationError = ValidateCompanyFields(
+                    latitude,
+                    longitude,
+                    ("website", website),
+                    ("career_url", careerUrl),
+                    ("linkedin_url", linkedinUrl),
+                    ("glassdoor_url", glassdoorUrl),
+                    ("logo_url", logoUrl));
+
+                if (fieldValidationError is not null)
+                {
+                    skipped++;
+                    errors.Add(new ImportErrorDto(row, fieldValidationError));
                     continue;
                 }
 
@@ -89,13 +117,13 @@ public sealed class CsvImportService
                     EmptyToNull(Field(reader, "address")),
                     latitude,
                     longitude,
-                    EmptyToNull(Field(reader, "website")),
-                    EmptyToNull(Field(reader, "career_url")),
-                    EmptyToNull(Field(reader, "linkedin_url")),
-                    EmptyToNull(Field(reader, "glassdoor_url")),
+                    website,
+                    careerUrl,
+                    linkedinUrl,
+                    glassdoorUrl,
                     RadarText.CleanStackList(Field(reader, "known_stack")),
                     EmptyToNull(Field(reader, "notes")),
-                    EmptyToNull(Field(reader, "logo_url")));
+                    logoUrl);
 
                 if (await UpsertCompanyAsync(connection, transaction, company))
                 {
@@ -150,6 +178,17 @@ public sealed class CsvImportService
                 }
 
                 var url = EmptyToNull(Field(reader, "url"));
+                var salaryMin = ParseDecimal(Field(reader, "salary_min"));
+                var salaryMax = ParseDecimal(Field(reader, "salary_max"));
+                var fieldValidationError = ValidateJobFields(salaryMin, salaryMax, ("url", url));
+
+                if (fieldValidationError is not null)
+                {
+                    skipped++;
+                    errors.Add(new ImportErrorDto(row, fieldValidationError));
+                    continue;
+                }
+
                 var location = EmptyToNull(Field(reader, "location"));
                 var companyId = await FindOrCreateCompanyAsync(connection, transaction, companyName, location);
 
@@ -160,8 +199,8 @@ public sealed class CsvImportService
                     location,
                     EmptyToNull(Field(reader, "remote_policy")),
                     EmptyToNull(Field(reader, "contract")),
-                    ParseDecimal(Field(reader, "salary_min")),
-                    ParseDecimal(Field(reader, "salary_max")),
+                    salaryMin,
+                    salaryMax,
                     EmptyToNull(Field(reader, "seniority")),
                     EmptyToNull(Field(reader, "job_type")),
                     RadarText.CleanStackList(Field(reader, "stack")),
@@ -233,6 +272,51 @@ public sealed class CsvImportService
     {
         return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result)
             || double.TryParse(value, NumberStyles.Float, CultureInfo.GetCultureInfo("fr-FR"), out result);
+    }
+
+    private static string? ValidateCompanyFields(double latitude, double longitude, params (string Name, string? Value)[] urls)
+    {
+        if (latitude is < -90 or > 90)
+        {
+            return "Champ latitude : la valeur doit être comprise entre -90 et 90.";
+        }
+
+        if (longitude is < -180 or > 180)
+        {
+            return "Champ longitude : la valeur doit être comprise entre -180 et 180.";
+        }
+
+        return ValidateUrls(urls);
+    }
+
+    private static string? ValidateJobFields(decimal? salaryMin, decimal? salaryMax, params (string Name, string? Value)[] urls)
+    {
+        if (salaryMin is not null && salaryMax is not null && salaryMin > salaryMax)
+        {
+            return "Champ salary_min : la valeur doit être inférieure ou égale à salary_max.";
+        }
+
+        return ValidateUrls(urls);
+    }
+
+    private static string? ValidateUrls(params (string Name, string? Value)[] urls)
+    {
+        foreach (var (name, value) in urls)
+        {
+            if (!string.IsNullOrWhiteSpace(value) && !IsValidUrl(value))
+            {
+                return $"Champ {name} : l'URL doit être absolue et commencer par http:// ou https://.";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsValidUrl(string value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            && !string.IsNullOrWhiteSpace(uri.Host);
     }
 
     private static decimal? ParseDecimal(string value)

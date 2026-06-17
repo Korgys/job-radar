@@ -87,6 +87,72 @@ public sealed class CsvImportServiceTests
     }
 
     [Fact]
+    public async Task ImportCompaniesAsync_ReportsOutOfRangeCoordinates()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var imports = new CsvImportService(database);
+
+            const string csv = """
+                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,glassdoor_url,known_stack,notes,logo_url
+                Test Corp,SaaS,Finance,Strasbourg,,91,7.75,https://example.test,,,,C#;.NET,Note,
+                """;
+
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            var result = await imports.ImportCompaniesAsync(stream);
+
+            Assert.Equal(0, result.Imported);
+            Assert.Equal(1, result.Skipped);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(2, error.Row);
+            Assert.Contains("latitude", error.Message);
+            Assert.Contains("-90 et 90", error.Message);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ImportCompaniesAsync_ReportsInvalidUrl()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var imports = new CsvImportService(database);
+
+            const string csv = """
+                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,glassdoor_url,known_stack,notes,logo_url
+                Test Corp,SaaS,Finance,Strasbourg,,48.58,7.75,not-a-url,,,,C#;.NET,Note,
+                """;
+
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+            var result = await imports.ImportCompaniesAsync(stream);
+
+            Assert.Equal(0, result.Imported);
+            Assert.Equal(1, result.Skipped);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(2, error.Row);
+            Assert.Contains("website", error.Message);
+            Assert.Contains("URL", error.Message);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ImportJobsAsync_ImportsInitialJob()
     {
         var directory = CreateTempDirectory();
@@ -116,6 +182,39 @@ public sealed class CsvImportServiceTests
             Assert.Equal(45000, jobs[0].SalaryMin);
             Assert.Equal(55000, jobs[0].SalaryMax);
             Assert.Equal(new[] { "C#", ".NET" }, jobs[0].Stack);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ImportJobsAsync_ReportsInvertedSalaries()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var imports = new CsvImportService(database);
+
+            const string jobsCsv = """
+                company_name,title,location,remote_policy,contract,salary_min,salary_max,seniority,job_type,stack,description,url,publication_date
+                Test Corp,Développeur C#,Strasbourg,hybrid,CDI,65000,45000,confirmed,backend,C#;.NET,Description,https://example.test/jobs/1,2026-01-15
+                """;
+
+            await using var jobsStream = new MemoryStream(Encoding.UTF8.GetBytes(jobsCsv));
+            var result = await imports.ImportJobsAsync(jobsStream);
+
+            Assert.Equal(0, result.Imported);
+            Assert.Equal(1, result.Skipped);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(2, error.Row);
+            Assert.Contains("salary_min", error.Message);
+            Assert.Contains("salary_max", error.Message);
         }
         finally
         {

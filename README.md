@@ -108,6 +108,12 @@ Champs obligatoires : `name`, `domain`, `city`, `latitude`, `longitude`.
 
 Listes separees par `;` : `secondary_domains`, `known_stack`.
 
+Regles de validation :
+
+- `latitude` doit etre numerique et comprise entre `-90` et `90`.
+- `longitude` doit etre numerique et comprise entre `-180` et `180`.
+- `website`, `career_url`, `linkedin_url`, `glassdoor_url` et `logo_url`, lorsqu'ils sont renseignes, doivent etre des URLs absolues commencant par `http://` ou `https://`.
+
 Une entreprise deja presente avec le meme nom et la meme ville est mise a jour.
 Les noms d'entreprises sont compares avec une normalisation de suffixes courants pour eviter les doublons entre une offre et une fiche entreprise deja importee.
 
@@ -122,6 +128,11 @@ company_name,title,location,remote_policy,contract,salary_min,salary_max,seniori
 Champs obligatoires : `company_name`, `title`.
 
 Liste separee par `;` : `stack`.
+
+Regles de validation :
+
+- `salary_min` et `salary_max`, lorsqu'ils sont tous les deux renseignes, doivent respecter `salary_min <= salary_max`.
+- `url`, lorsqu'il est renseigne, doit etre une URL absolue commencant par `http://` ou `https://`.
 
 Les doublons sont evites avec la combinaison `company_name + title + url`.
 
