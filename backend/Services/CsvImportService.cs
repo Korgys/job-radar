@@ -294,16 +294,24 @@ public sealed class CsvImportService
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            SELECT id
+            SELECT id, name
             FROM companies
-            WHERE lower(name) = lower($name) AND lower(city) = lower($city)
-            LIMIT 1;
+            WHERE lower(city) = lower($city);
             """;
-        command.Parameters.AddWithValue("$name", name);
         command.Parameters.AddWithValue("$city", city);
 
-        var value = await command.ExecuteScalarAsync();
-        return value is null ? null : Convert.ToInt32(value);
+        var expectedName = NormalizeDedupeKey(name);
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var existingName = reader.IsDBNull(1) ? "" : reader.GetString(1);
+            if (NormalizeDedupeKey(existingName) == expectedName)
+            {
+                return reader.GetInt32(0);
+            }
+        }
+
+        return null;
     }
 
     private static async Task<int?> FindCompanyByNameAsync(SqliteConnection connection, SqliteTransaction transaction, string name)
@@ -352,18 +360,38 @@ public sealed class CsvImportService
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            command.CommandText = """
+                SELECT id
+                FROM jobs
+                WHERE lower(company_name) = lower($companyName)
+                  AND lower(url) = lower($url)
+                LIMIT 1;
+                """;
+            command.Parameters.AddWithValue("$companyName", companyName);
+            command.Parameters.AddWithValue("$url", url);
+            return await command.ExecuteScalarAsync() is not null;
+        }
+
         command.CommandText = """
             SELECT id
             FROM jobs
             WHERE lower(company_name) = lower($companyName)
               AND lower(title) = lower($title)
-              AND lower(coalesce(url, '')) = lower($url)
+              AND coalesce(url, '') = ''
             LIMIT 1;
             """;
         command.Parameters.AddWithValue("$companyName", companyName);
         command.Parameters.AddWithValue("$title", title);
-        command.Parameters.AddWithValue("$url", url ?? "");
         return await command.ExecuteScalarAsync() is not null;
+    }
+
+    private static string NormalizeDedupeKey(string value)
+    {
+        return new string(RadarText.NormalizeSearch(value)
+            .Where(char.IsLetterOrDigit)
+            .ToArray());
     }
 
     private static async Task InsertJobAsync(SqliteConnection connection, SqliteTransaction transaction, JobImportRow job)

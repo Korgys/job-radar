@@ -5,10 +5,15 @@ import { ImportBox } from '../components/ImportBox';
 import type { Company, Score } from '../types';
 import { domainColor, formatList, matchesText } from './shared';
 
+type CompanySortKey = 'name' | 'domain' | 'city' | 'stack' | 'jobCount' | 'score';
+type SortDirection = 'asc' | 'desc';
+type CompanySort = { key: CompanySortKey; direction: SortDirection };
+
 export function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selected, setSelected] = useState<Company | null>(null);
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<CompanySort | null>(null);
 
   useEffect(() => {
     void load();
@@ -21,10 +26,22 @@ export function CompaniesPage() {
   }
 
   const filtered = useMemo(() => {
-    return companies.filter((company) =>
-      matchesText(search, company.name, company.city, company.domain, company.knownStack.join(' '), company.notes ?? '')
-    );
-  }, [companies, search]);
+    return companies
+      .filter((company) =>
+        matchesText(search, company.name, company.city, company.domain, company.knownStack.join(' '), company.notes ?? '')
+      )
+      .sort((left, right) => compareCompanies(left, right, sort));
+  }, [companies, search, sort]);
+
+  function changeSort(key: CompanySortKey) {
+    setSort((current) => {
+      if (current?.key !== key) {
+        return { key, direction: 'asc' };
+      }
+
+      return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  }
 
   const resultText = search.trim()
     ? `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} sur ${companies.length}`
@@ -58,12 +75,12 @@ export function CompaniesPage() {
             <table className="companies-table">
               <thead>
                 <tr>
-                  <th>Nom</th>
-                  <th>Domaine</th>
-                  <th>Ville</th>
-                  <th>Stack</th>
-                  <th>Offres</th>
-                  <th>Score</th>
+                  <SortableHeader label="Nom" sortKey="name" sort={sort} onSort={changeSort} />
+                  <SortableHeader label="Domaine" sortKey="domain" sort={sort} onSort={changeSort} />
+                  <SortableHeader label="Ville" sortKey="city" sort={sort} onSort={changeSort} />
+                  <SortableHeader label="Stack" sortKey="stack" sort={sort} onSort={changeSort} />
+                  <SortableHeader label="Offres" sortKey="jobCount" sort={sort} onSort={changeSort} />
+                  <SortableHeader label="Score" sortKey="score" sort={sort} onSort={changeSort} />
                 </tr>
               </thead>
               <tbody>
@@ -98,6 +115,65 @@ export function CompaniesPage() {
       </div>
     </div>
   );
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  onSort
+}: {
+  label: string;
+  sortKey: CompanySortKey;
+  sort: CompanySort | null;
+  onSort: (key: CompanySortKey) => void;
+}) {
+  const active = sort?.key === sortKey;
+  const direction = active ? sort.direction : undefined;
+
+  return (
+    <th aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="sort-header-button" onClick={() => onSort(sortKey)}>
+        <span>{label}</span>
+        <span className="sort-indicator" aria-hidden="true">{active ? (direction === 'asc' ? '▲' : '▼') : ''}</span>
+      </button>
+    </th>
+  );
+}
+
+function compareCompanies(left: Company, right: Company, sort: CompanySort | null) {
+  if (!sort) {
+    return (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0) || left.name.localeCompare(right.name);
+  }
+
+  const direction = sort.direction === 'asc' ? 1 : -1;
+  const result = compareValues(companySortValue(left, sort.key), companySortValue(right, sort.key));
+  return result * direction || left.name.localeCompare(right.name);
+}
+
+function companySortValue(company: Company, key: CompanySortKey) {
+  switch (key) {
+    case 'name':
+      return company.name;
+    case 'domain':
+      return company.domain;
+    case 'city':
+      return company.city;
+    case 'stack':
+      return formatList(company.knownStack);
+    case 'jobCount':
+      return company.jobCount;
+    case 'score':
+      return company.score?.globalScore ?? -1;
+  }
+}
+
+function compareValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') {
+    return left - right;
+  }
+
+  return String(left).localeCompare(String(right), 'fr', { sensitivity: 'base', numeric: true });
 }
 
 export function CompanyDetail({ company }: { company: Company | null }) {
@@ -263,26 +339,26 @@ function ScoreBreakdown({ score }: { score?: Score | null }) {
   }
 
   const items = [
-    ['Stack', score.stackScore],
-    ['Rôle', score.roleScore],
-    ['Domaine', score.domainScore],
-    ['Séniorité', score.seniorityScore],
-    ['Localisation', score.locationScore],
-    ['Salaire', score.salaryScore]
+    ['Stack', score.stackScore, 30],
+    ['Opportunités', score.strategicScore, 25],
+    ['Domaine', score.domainScore, 15],
+    ['Postes', score.roleScore, 10],
+    ['Localisation', score.locationScore, 10],
+    ['Actionnabilité', score.salaryScore, 10]
   ] as const;
 
   return (
     <DetailSection title="Détail du score">
       <p className="muted score-help">Ce score sert à prioriser les entreprises selon les données disponibles.</p>
       <div className="score-breakdown">
-        {items.map(([label, value]) => (
+        {items.map(([label, value, max]) => (
           <div key={label} className="score-row">
             <div>
               <span>{label}</span>
               <strong>{value}</strong>
             </div>
-            <div className="score-bar" aria-label={`${label} ${value}`}>
-              <span style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+            <div className="score-bar" aria-label={`${label} ${value}/${max}`}>
+              <span style={{ width: `${Math.min(100, Math.max(0, (value / max) * 100))}%` }} />
             </div>
           </div>
         ))}
@@ -326,8 +402,8 @@ function ReasonList({ title, values, tone }: { title: string; values: string[]; 
 }
 
 function priorityLevel(score: number) {
-  if (score >= 80) return { key: 'top', label: 'Cible forte', shortLabel: 'Forte' };
-  if (score >= 60) return { key: 'high', label: 'Entreprise prioritaire', shortLabel: 'Prioritaire' };
+  if (score >= 75) return { key: 'top', label: 'Cible prioritaire', shortLabel: 'Forte' };
+  if (score >= 60) return { key: 'high', label: 'À suivre activement', shortLabel: 'Active' };
   if (score >= 40) return { key: 'correct', label: 'Potentiel correct', shortLabel: 'Correct' };
   if (score >= 20) return { key: 'watch', label: 'Entreprise à surveiller', shortLabel: 'Surveiller' };
   return { key: 'low', label: 'Priorité actuelle faible', shortLabel: 'Faible' };

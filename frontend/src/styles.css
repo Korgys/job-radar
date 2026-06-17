@@ -420,6 +420,32 @@ th {
   text-transform: uppercase;
 }
 
+.sort-header-button {
+  align-items: center;
+  background: transparent;
+  border-radius: 4px;
+  color: inherit;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 800;
+  gap: 0.35rem;
+  justify-content: flex-start;
+  padding: 0;
+  text-align: left;
+  text-transform: inherit;
+  width: 100%;
+}
+
+.sort-header-button:hover {
+  color: #173f49;
+}
+
+.sort-indicator {
+  display: inline-block;
+  min-width: 0.7rem;
+  text-align: center;
+}
+
 tr.clickable {
   cursor: pointer;
 }

@@ -5,11 +5,16 @@ import { ScorePanel } from '../components/ScorePanel';
 import type { Job } from '../types';
 import { formatList, matchesText } from './shared';
 
+type JobSortKey = 'title' | 'company' | 'location' | 'type' | 'seniority' | 'stack' | 'score';
+type SortDirection = 'asc' | 'desc';
+type JobSort = { key: JobSortKey; direction: SortDirection };
+
 export function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<Job | null>(null);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
+  const [sort, setSort] = useState<JobSort | null>(null);
 
   useEffect(() => {
     void load();
@@ -37,8 +42,18 @@ export function JobsPage() {
       .filter((job) =>
         matchesText(search, job.title, job.companyName, job.location ?? '', job.jobType ?? '', job.stack.join(' '), job.description ?? '')
       )
-      .sort((left, right) => (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0));
-  }, [jobs, search]);
+      .sort((left, right) => compareJobs(left, right, sort));
+  }, [jobs, search, sort]);
+
+  function changeSort(key: JobSortKey) {
+    setSort((current) => {
+      if (current?.key !== key) {
+        return { key, direction: 'asc' };
+      }
+
+      return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+    });
+  }
 
   return (
     <>
@@ -66,13 +81,13 @@ export function JobsPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Titre</th>
-                    <th>Entreprise</th>
-                    <th>Localisation</th>
-                    <th>Type</th>
-                    <th>Séniorité</th>
-                    <th>Stack</th>
-                    <th>Score</th>
+                    <SortableHeader label="Titre" sortKey="title" sort={sort} onSort={changeSort} />
+                    <SortableHeader label="Entreprise" sortKey="company" sort={sort} onSort={changeSort} />
+                    <SortableHeader label="Localisation" sortKey="location" sort={sort} onSort={changeSort} />
+                    <SortableHeader label="Type" sortKey="type" sort={sort} onSort={changeSort} />
+                    <SortableHeader label="Séniorité" sortKey="seniority" sort={sort} onSort={changeSort} />
+                    <SortableHeader label="Stack" sortKey="stack" sort={sort} onSort={changeSort} />
+                    <SortableHeader label="Score" sortKey="score" sort={sort} onSort={changeSort} />
                   </tr>
                 </thead>
                 <tbody>
@@ -98,6 +113,67 @@ export function JobsPage() {
       <JobDetail job={selected} />
     </>
   );
+}
+
+function SortableHeader({
+  label,
+  sortKey,
+  sort,
+  onSort
+}: {
+  label: string;
+  sortKey: JobSortKey;
+  sort: JobSort | null;
+  onSort: (key: JobSortKey) => void;
+}) {
+  const active = sort?.key === sortKey;
+  const direction = active ? sort.direction : undefined;
+
+  return (
+    <th aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="sort-header-button" onClick={() => onSort(sortKey)}>
+        <span>{label}</span>
+        <span className="sort-indicator" aria-hidden="true">{active ? (direction === 'asc' ? '▲' : '▼') : ''}</span>
+      </button>
+    </th>
+  );
+}
+
+function compareJobs(left: Job, right: Job, sort: JobSort | null) {
+  if (!sort) {
+    return (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0) || left.title.localeCompare(right.title);
+  }
+
+  const direction = sort.direction === 'asc' ? 1 : -1;
+  const result = compareValues(jobSortValue(left, sort.key), jobSortValue(right, sort.key));
+  return result * direction || left.title.localeCompare(right.title);
+}
+
+function jobSortValue(job: Job, key: JobSortKey) {
+  switch (key) {
+    case 'title':
+      return job.title;
+    case 'company':
+      return job.companyName;
+    case 'location':
+      return job.location ?? '';
+    case 'type':
+      return job.jobType ?? '';
+    case 'seniority':
+      return job.seniority ?? '';
+    case 'stack':
+      return formatList(job.stack);
+    case 'score':
+      return job.score?.globalScore ?? -1;
+  }
+}
+
+function compareValues(left: string | number, right: string | number) {
+  if (typeof left === 'number' && typeof right === 'number') {
+    return left - right;
+  }
+
+  return String(left).localeCompare(String(right), 'fr', { sensitivity: 'base', numeric: true });
 }
 
 export function JobDetail({ job }: { job: Job | null }) {

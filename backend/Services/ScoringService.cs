@@ -53,23 +53,23 @@ public sealed class ScoringService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var stackResult = ScoreStack(profile.DetectedSkills, targetStack, 30, positive, negative);
-        var domainScore = ScoreDomain(profile.DetectedDomains, company.Domain, 20, positive, negative);
-        var roleScore = ScoreRoles(profile.DetectedRoles, jobs.SelectMany(job => new[] { job.Title, job.JobType ?? "" }), 20, positive, negative);
+        var stackResult = ScoreCompanyStack(profile.DetectedSkills, targetStack, positive, negative);
+        var opportunitiesScore = ScoreCompanyOpportunities(jobs, positive, negative);
+        var domainScore = ScoreCompanyDomain(profile.DetectedDomains, company, positive, negative);
+        var roleScore = ScoreCompanyRoles(profile.DetectedRoles, jobs, positive, negative);
         var locationScore = ScoreCompanyLocation(company, jobs, positive, negative);
-        var seniorityScore = ScoreCompanySeniority(profile.DetectedSeniority, jobs, positive, negative);
-        var strategicScore = ScoreStrategicInterest(company, stackResult.Score, domainScore, positive, negative);
-        var global = stackResult.Score + domainScore + roleScore + locationScore + seniorityScore + strategicScore;
+        var dataQualityScore = ScoreCompanyActionability(company, targetStack, positive, negative);
+        var global = stackResult.Score + opportunitiesScore + domainScore + roleScore + locationScore + dataQualityScore;
 
         return new ScoreDto(
             Math.Clamp(global, 0, 100),
             stackResult.Score,
             roleScore,
             domainScore,
-            seniorityScore,
-            locationScore,
             0,
-            strategicScore,
+            locationScore,
+            dataQualityScore,
+            opportunitiesScore,
             positive,
             negative,
             stackResult.MissingSkills);
@@ -132,6 +132,112 @@ public sealed class ScoringService
         return new StackScoreResult(score, missing);
     }
 
+    private static StackScoreResult ScoreCompanyStack(IReadOnlyList<string> candidateSkills, IReadOnlyList<string> targetStack, List<string> positive, List<string> negative)
+    {
+        var target = targetStack
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (target.Length == 0)
+        {
+            negative.Add("Stack entreprise non renseignée.");
+            return new StackScoreResult(0, Array.Empty<string>());
+        }
+
+        var candidateKeys = candidateSkills.Select(NormalizeSkill).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var matching = target.Where(skill => candidateKeys.Contains(NormalizeSkill(skill))).ToArray();
+        var missing = target.Where(skill => !candidateKeys.Contains(NormalizeSkill(skill))).ToArray();
+        var expectedMatches = Math.Min(5, target.Length);
+        var score = (int)Math.Round(30 * Math.Min(matching.Length, expectedMatches) / (double)expectedMatches);
+
+        if (matching.Length > 0)
+        {
+            positive.Add($"Stack compatible : {string.Join(", ", matching.Take(6))}.");
+        }
+
+        if (missing.Length > 0)
+        {
+            negative.Add($"Stack à vérifier : {string.Join(", ", missing.Take(6))}.");
+        }
+
+        return new StackScoreResult(score, missing);
+    }
+
+    private static int ScoreCompanyOpportunities(IReadOnlyList<JobDto> jobs, List<string> positive, List<string> negative)
+    {
+        var count = jobs.Count;
+        if (count >= 5)
+        {
+            positive.Add($"{count} offres liées disponibles.");
+            return 25;
+        }
+
+        if (count >= 3)
+        {
+            positive.Add($"{count} offres liées disponibles.");
+            return 21;
+        }
+
+        if (count == 2)
+        {
+            positive.Add("2 offres liées disponibles.");
+            return 17;
+        }
+
+        if (count == 1)
+        {
+            positive.Add("1 offre liée disponible.");
+            return 13;
+        }
+
+        negative.Add("Aucune offre liée détectée.");
+        return 0;
+    }
+
+    private static int ScoreCompanyDomain(IReadOnlyList<string> candidateDomains, CompanyDto company, List<string> positive, List<string> negative)
+    {
+        var companyDomains = new[] { company.Domain }
+            .Concat(company.SecondaryDomains)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+
+        if (companyDomains.Length == 0)
+        {
+            negative.Add("Domaine entreprise non renseigné.");
+            return 0;
+        }
+
+        var normalizedCandidateDomains = candidateDomains.Select(RadarText.NormalizeSearch).ToArray();
+        var exactMatch = companyDomains.FirstOrDefault(domain => normalizedCandidateDomains.Contains(RadarText.NormalizeSearch(domain)));
+        if (exactMatch is not null)
+        {
+            positive.Add($"Domaine cohérent : {exactMatch}.");
+            return 15;
+        }
+
+        var relatedMatch = companyDomains.FirstOrDefault(domain => normalizedCandidateDomains.Any(candidate => DomainsAreRelated(candidate, domain)));
+        if (relatedMatch is not null)
+        {
+            positive.Add($"Domaine proche du profil : {relatedMatch}.");
+            return 11;
+        }
+
+        negative.Add($"Domaine moins aligné : {company.Domain}.");
+        return 0;
+    }
+
+    private static int ScoreCompanyRoles(IReadOnlyList<string> candidateRoles, IReadOnlyList<JobDto> jobs, List<string> positive, List<string> negative)
+    {
+        if (jobs.Count == 0)
+        {
+            negative.Add("Aucun type de poste disponible à comparer.");
+            return 0;
+        }
+
+        return ScoreRoles(candidateRoles, jobs.SelectMany(job => new[] { job.Title, job.JobType ?? "", job.Description ?? "" }), 10, positive, negative);
+    }
+
     private static int ScoreDomain(IReadOnlyList<string> candidateDomains, string companyDomain, int maxPoints, List<string> positive, List<string> negative)
     {
         if (string.IsNullOrWhiteSpace(companyDomain))
@@ -184,8 +290,8 @@ public sealed class ScoringService
         var normalizedRole = RadarText.NormalizeSearch(role);
         return normalizedRole switch
         {
-            "developpeur backend" => ContainsAny(normalizedTarget, "backend", "api", "asp.net", ".net"),
-            "developpeur fullstack" => ContainsAny(normalizedTarget, "fullstack", "full stack", "react", "angular"),
+            "developpeur backend" => ContainsAny(normalizedTarget, "backend", "back-end", "api", "asp.net", ".net", "software_engineer"),
+            "developpeur fullstack" => ContainsAny(normalizedTarget, "fullstack", "full stack", "backend", "frontend", "react", "angular", ".net", "software_engineer"),
             "tech lead" => ContainsAny(normalizedTarget, "tech lead", "lead", "architecte"),
             "lead developer" => ContainsAny(normalizedTarget, "lead developer", "lead dev", "lead"),
             "ingenieur cybersecurite" => ContainsAny(normalizedTarget, "cyber", "securite", "security"),
@@ -214,6 +320,31 @@ public sealed class ScoringService
         return 0;
     }
 
+    private static int ScoreCompanyActionability(CompanyDto company, IReadOnlyList<string> targetStack, List<string> positive, List<string> negative)
+    {
+        var score = 0;
+        if (!string.IsNullOrWhiteSpace(company.CareerUrl)) score += 3;
+        if (!string.IsNullOrWhiteSpace(company.LinkedinUrl)) score += 2;
+        if (!string.IsNullOrWhiteSpace(company.Website)) score += 2;
+        if (targetStack.Any(value => !string.IsNullOrWhiteSpace(value))) score += 2;
+        if (!string.IsNullOrWhiteSpace(company.Notes)) score += 1;
+
+        if (company.Incomplete)
+        {
+            negative.Add("Entreprise créée depuis une offre et encore incomplète.");
+        }
+        else if (score >= 8)
+        {
+            positive.Add("Données actionnables pour candidater ou suivre l'entreprise.");
+        }
+        else
+        {
+            negative.Add("Données à compléter pour faciliter le suivi.");
+        }
+
+        return Math.Min(score, 10);
+    }
+
     private static int ScoreRemoteOrLocation(string? remotePolicy, string? location, int maxPoints, List<string> positive, List<string> negative)
     {
         if (IsRemoteFriendly(remotePolicy))
@@ -230,27 +361,6 @@ public sealed class ScoringService
 
         negative.Add("Remote/localisation non précisés.");
         return 0;
-    }
-
-    private static int ScoreCompanySeniority(string detectedSeniority, IReadOnlyList<JobDto> jobs, List<string> positive, List<string> negative)
-    {
-        if (jobs.Count == 0)
-        {
-            negative.Add("Aucune offre liée pour évaluer la séniorité.");
-            return 0;
-        }
-
-        var best = jobs.Select(job => ScoreSeniorityValue(detectedSeniority, job.Seniority)).Max();
-        if (best >= 8)
-        {
-            positive.Add("Séniorité compatible avec les offres disponibles.");
-        }
-        else
-        {
-            negative.Add("Séniorité demandée peu claire ou moins alignée.");
-        }
-
-        return best;
     }
 
     private static int ScoreSeniority(string detectedSeniority, string? targetSeniority, int maxPoints, List<string> positive, List<string> negative)
@@ -292,28 +402,22 @@ public sealed class ScoringService
         return candidateRank + 1 == targetRank ? 6 : 2;
     }
 
-    private static int ScoreStrategicInterest(CompanyDto company, int stackScore, int domainScore, List<string> positive, List<string> negative)
+    private static bool DomainsAreRelated(string normalizedCandidateDomain, string companyDomain)
     {
-        if (company.Incomplete)
-        {
-            negative.Add("Entreprise créée depuis une offre et encore incomplète.");
-            return 0;
-        }
+        var normalizedCompanyDomain = RadarText.NormalizeSearch(companyDomain);
+        var candidateGroup = DomainGroup(normalizedCandidateDomain);
+        var companyGroup = DomainGroup(normalizedCompanyDomain);
+        return candidateGroup.Length > 0 && candidateGroup == companyGroup;
+    }
 
-        if (domainScore > 0 && stackScore >= 15)
-        {
-            positive.Add("Cible stratégique : domaine et stack alignés.");
-            return 10;
-        }
-
-        if (company.JobCount > 0)
-        {
-            positive.Add("Entreprise active côté recrutement.");
-            return 6;
-        }
-
-        negative.Add("Intérêt stratégique limité faute d'offres ou de stack claire.");
-        return 2;
+    private static string DomainGroup(string normalizedDomain)
+    {
+        if (ContainsAny(normalizedDomain, "banque", "assurance", "finance", "fintech", "assurtech")) return "finance";
+        if (ContainsAny(normalizedDomain, "sante", "biotech", "pharma", "medical")) return "sante";
+        if (ContainsAny(normalizedDomain, "industrie", "energie", "iot", "ot", "automatisation", "smart grid")) return "industrie";
+        if (ContainsAny(normalizedDomain, "saas", "software", "logiciel", "editeur", "digital", "cloud", "web")) return "software";
+        if (ContainsAny(normalizedDomain, "cyber", "securite", "security")) return "cyber";
+        return "";
     }
 
     private static int ScoreSalary(JobDto job, List<string> positive, List<string> negative)
