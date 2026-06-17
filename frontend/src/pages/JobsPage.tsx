@@ -13,6 +13,7 @@ export function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<Job | null>(null);
   const [search, setSearch] = useState('');
+  const [minScore, setMinScore] = useState('60');
   const [message, setMessage] = useState('');
   const [sort, setSort] = useState<JobSort | null>(null);
 
@@ -38,12 +39,15 @@ export function JobsPage() {
   }
 
   const filtered = useMemo(() => {
+    const score = Number(minScore || 0);
+
     return jobs
       .filter((job) =>
+        (job.score?.globalScore ?? 0) >= score &&
         matchesText(search, job.title, job.companyName, job.location ?? '', job.jobType ?? '', job.stack.join(' '), job.description ?? '')
       )
       .sort((left, right) => compareJobs(left, right, sort));
-  }, [jobs, search, sort]);
+  }, [jobs, minScore, search, sort]);
 
   function changeSort(key: JobSortKey) {
     setSort((current) => {
@@ -71,11 +75,15 @@ export function JobsPage() {
         <section className="grid">
           <ImportBox accept=".csv,text/csv" label="Importer jobs.csv" onUpload={api.uploadJobs} onDone={() => void load()} />
           <div className="panel">
-            <div className="toolbar">
-              <label>
-                Recherche
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Titre, entreprise, stack" />
-              </label>
+            <div className="toolbar jobs-filter-toolbar">
+              <input
+                className="jobs-search-input"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="rechercher un titre, une entreprise, une stack"
+                aria-label="Recherche"
+              />
+              <ScoreStepper value={minScore} onChange={setMinScore} />
             </div>
             <div className="table-wrap">
               <table>
@@ -174,6 +182,33 @@ function compareValues(left: string | number, right: string | number) {
   }
 
   return String(left).localeCompare(String(right), 'fr', { sensitivity: 'base', numeric: true });
+}
+
+function ScoreStepper({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const score = clampScore(Number(value || 0));
+
+  function update(delta: number) {
+    onChange(String(clampScore(score + delta)));
+  }
+
+  return (
+    <div className="score-stepper-field">
+      <span>Score minimum</span>
+      <div className="score-stepper" role="group" aria-label="Score minimum">
+        <button type="button" onClick={() => update(-5)} disabled={score <= 0}>-</button>
+        <strong>{score}</strong>
+        <button type="button" onClick={() => update(5)} disabled={score >= 100}>+</button>
+      </div>
+    </div>
+  );
+}
+
+function clampScore(value: number) {
+  if (Number.isNaN(value)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, Math.round(value / 5) * 5));
 }
 
 export function JobDetail({ job }: { job: Job | null }) {

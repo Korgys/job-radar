@@ -491,17 +491,39 @@ tr.clickable:hover {
   padding: 0.75rem;
 }
 
+.import-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+}
+
 .import-box .import-row {
   align-items: center;
 }
 
-.import-box label {
-  min-width: 260px;
+.file-picker {
+  display: inline-flex;
+  min-width: 0;
 }
 
-.import-box input[type="file"] {
-  background: #f8fbfc;
-  min-height: 36px;
+.file-picker input[type="file"] {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.file-picker span {
+  background: #eef3f4;
+  border: 1px solid #d7e2e6;
+  border-radius: 6px;
+  color: #263743;
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 38px;
+  padding: 0.48rem 0.75rem;
 }
 
 .selected-file {
@@ -670,6 +692,16 @@ tr.clickable:hover {
 .table-score-value {
   color: #263743;
   font-weight: 800;
+}
+
+.jobs-filter-toolbar {
+  align-items: end;
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(150px, 220px);
+}
+
+.jobs-search-input {
+  width: 100%;
 }
 
 .map-layout {
@@ -1199,9 +1231,11 @@ tr.clickable:hover {
     display: none;
   }
 
-  .import-box label {
-    min-width: 0;
-    width: 100%;
+  .import-heading,
+  .import-row,
+  .jobs-filter-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .company-detail-header {

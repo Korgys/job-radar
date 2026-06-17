@@ -41,13 +41,16 @@ export function ImportBox<T>({ accept, label, onUpload, onDone }: ImportBoxProps
 
   return (
     <div className="panel import-box">
-      <div className="import-row">
-        <label>
-          {label}
-          <input ref={inputRef} type="file" accept={accept} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        </label>
+      <div className="import-heading">
+        <strong>{label}</strong>
         <span className="selected-file">{file ? file.name : 'Aucun fichier choisi'}</span>
-        <button type="button" onClick={submit} disabled={loading}>
+      </div>
+      <div className="import-row">
+        <label className="file-picker">
+          <input ref={inputRef} type="file" accept={accept} onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          <span>Choisir un CSV</span>
+        </label>
+        <button type="button" onClick={submit} disabled={loading || !file}>
           {loading ? 'Import...' : 'Importer'}
         </button>
       </div>
