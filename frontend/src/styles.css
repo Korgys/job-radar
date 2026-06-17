@@ -761,6 +761,7 @@ tr.clickable:hover {
 }
 
 .map-detail-wide {
+  container-type: inline-size;
   margin: 0;
 }
 
@@ -769,10 +770,11 @@ tr.clickable:hover {
   background: linear-gradient(180deg, #ffffff 0, #ffffff 118px, #fbfdfe 118px);
   gap: 0.72rem 1rem;
   grid-template-areas:
-    "header score jobs notes"
-    "domains stack jobs analysis"
-    "actions stack jobs analysis";
-  grid-template-columns: minmax(380px, 1fr) minmax(310px, 0.82fr) minmax(430px, 1.15fr) minmax(360px, 0.98fr);
+    "header score jobs analysis"
+    "notes stack jobs analysis"
+    "domains missing jobs analysis"
+    "actions missing jobs analysis";
+  grid-template-columns: minmax(310px, 1fr) minmax(260px, 0.8fr) minmax(360px, 1.15fr) minmax(320px, 0.95fr);
   padding: 0.72rem 0.85rem 0.85rem;
 }
 
@@ -867,6 +869,10 @@ tr.clickable:hover {
 
 .map-detail-wide .detail-section-stack {
   grid-area: stack;
+}
+
+.map-detail-wide .detail-section-missing {
+  grid-area: missing;
 }
 
 .map-detail-wide .detail-section-jobs {
@@ -1438,13 +1444,14 @@ tr.clickable:hover {
   white-space: pre-wrap;
 }
 
-@media (max-width: 1500px) {
+@container (max-width: 1500px) {
   .map-detail-wide > .company-detail-card {
     grid-template-areas:
       "header score"
-      "jobs jobs"
-      "domains notes"
+      "notes jobs"
+      "domains jobs"
       "stack analysis"
+      "missing analysis"
       "actions analysis";
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -1501,11 +1508,12 @@ tr.clickable:hover {
     grid-template-areas:
       "header"
       "score"
+      "notes"
       "jobs"
       "domains"
       "stack"
+      "missing"
       "actions"
-      "notes"
       "analysis";
     grid-template-columns: 1fr;
   }

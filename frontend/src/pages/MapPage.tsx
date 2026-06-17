@@ -69,7 +69,7 @@ export function MapPage() {
   const center = markerGroups[0] ? [markerGroups[0].lat, markerGroups[0].lng] as [number, number] : [48.5839, 7.7455] as [number, number];
 
   return (
-    <>
+    <div className="map-page">
       <div className="page-header">
         <div>
           <h1>Carte</h1>
@@ -137,7 +137,7 @@ export function MapPage() {
       <div className="map-detail-wide">
         <CompanyDetail company={selected} jobs={selectedJobs} />
       </div>
-    </>
+    </div>
   );
 }
 

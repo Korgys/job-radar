@@ -196,6 +196,7 @@ export function CompanyDetail({ company, jobs }: { company: Company | null; jobs
         <DetailSection title="Stack connue" className="detail-section-stack">
           <InfoChips values={company.knownStack} limit={8} />
         </DetailSection>
+        <MissingSkills score={company.score} />
         <DetailSection title="Offres liées" className="detail-section-jobs">
           <LinkedJobs count={company.jobCount} jobs={jobs} />
         </DetailSection>
@@ -397,10 +398,18 @@ function AnalysisQuick({ score }: { score?: Score | null }) {
     <DetailSection title="Analyse rapide" className="detail-section-analysis">
       <ReasonList title="Points forts" values={score.positiveReasons} tone="positive" />
       <ReasonList title="Points faibles" values={score.negativeReasons} tone="negative" />
-      <div className="analysis-block">
-        <strong>Compétences manquantes</strong>
-        {score.missingSkills.length > 0 ? <InfoChips values={score.missingSkills} /> : <p className="muted detail-empty">Aucune compétence manquante détectée.</p>}
-      </div>
+    </DetailSection>
+  );
+}
+
+function MissingSkills({ score }: { score?: Score | null }) {
+  if (!score) {
+    return null;
+  }
+
+  return (
+    <DetailSection title="Compétences manquantes" className="detail-section-missing">
+      {score.missingSkills.length > 0 ? <InfoChips values={score.missingSkills} /> : <p className="muted detail-empty">Aucune compétence manquante détectée.</p>}
     </DetailSection>
   );
 }
