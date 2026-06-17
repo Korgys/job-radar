@@ -63,6 +63,11 @@ public sealed record CandidateProfileDto(
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
+public sealed record UpdateCandidateProfileRequest(
+    IReadOnlyList<string>? DetectedSkills,
+    IReadOnlyList<string>? DetectedDomains,
+    string? DetectedSeniority);
+
 public sealed record ReportFileDto(string FileName, DateTime CreatedAt);
 
 public sealed record DashboardStatsDto(

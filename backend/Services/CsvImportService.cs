@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using CsvHelper;
 using CsvHelper.Configuration;
 using JobRadarLocal.Data;
@@ -9,6 +10,22 @@ namespace JobRadarLocal.Services;
 
 public sealed class CsvImportService
 {
+    private static readonly HashSet<string> CompanyNameSuffixTokens = new(StringComparer.Ordinal)
+    {
+        "digital",
+        "est",
+        "france",
+        "group",
+        "groupe",
+        "nord",
+        "ouest",
+        "paris",
+        "strasbourg",
+        "sud",
+        "technologies",
+        "technology"
+    };
+
     private readonly Database _database;
 
     public CsvImportService(Database database)
@@ -320,19 +337,19 @@ public sealed class CsvImportService
         }
 
         var expectedName = NormalizeDedupeKey(name);
-        var expectedCanonicalName = NormalizeCompanyAliasKey(expectedName);
+        var expectedComparableName = NormalizeCompanyComparableKey(name);
         var matches = new List<CompanyMatchCandidate>();
         using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             var existingName = reader.IsDBNull(1) ? "" : reader.GetString(1);
             var existingNameKey = NormalizeDedupeKey(existingName);
-            if (NormalizeCompanyAliasKey(existingNameKey) == expectedCanonicalName)
+            if (NormalizeCompanyComparableKey(existingName) == expectedComparableName)
             {
                 var incomplete = reader.GetInt32(2) == 1;
                 matches.Add(new CompanyMatchCandidate(
                     reader.GetInt32(0),
-                    existingNameKey == expectedCanonicalName ? 0 : 1,
+                    existingNameKey == expectedName ? 0 : 1,
                     incomplete ? 1 : 0,
                     incomplete || existingNameKey == expectedName));
             }
@@ -414,17 +431,18 @@ public sealed class CsvImportService
             .ToArray());
     }
 
-    private static string NormalizeCompanyAliasKey(string key)
+    private static string NormalizeCompanyComparableKey(string value)
     {
-        return key switch
+        var tokens = Regex.Matches(RadarText.NormalizeSearch(value), "[a-z0-9]+")
+            .Select(match => match.Value)
+            .ToList();
+
+        while (tokens.Count > 1 && CompanyNameSuffixTokens.Contains(tokens[^1]))
         {
-            "capgeminiest" => "capgemini",
-            "davidsondigitalest" => "davidsonest",
-            "hagergroup" => "hager",
-            "objectwarestrasbourg" => "objectware",
-            "sfeirest" => "sfeir",
-            _ => key
-        };
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
+        return string.Concat(tokens);
     }
 
     private static async Task InsertJobAsync(SqliteConnection connection, SqliteTransaction transaction, JobImportRow job)

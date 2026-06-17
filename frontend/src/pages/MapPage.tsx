@@ -3,32 +3,26 @@ import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import { api } from '../api';
-import { CompanyDetail } from './CompaniesPage';
-import { JobDetail } from './JobsPage';
 import type { Company, Job } from '../types';
-import { domainColor, formatList, matchesText, normalize, unique } from './shared';
+import { CompanyDetail } from './CompaniesPage';
+import { domainColor, matchesText, normalize, unique } from './shared';
+
+type JobPresenceFilter = 'all' | 'with' | 'without';
 
 type Filters = {
   domains: string[];
   stacks: string[];
   seniority: string;
-  remote: string;
+  jobPresence: JobPresenceFilter;
   minScore: string;
   search: string;
-};
-
-type SectorBounds = {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
 };
 
 const emptyFilters: Filters = {
   domains: [],
   stacks: [],
   seniority: '',
-  remote: '',
+  jobPresence: 'all',
   minScore: '0',
   search: ''
 };
@@ -37,9 +31,7 @@ export function MapPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<Company | null>(null);
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
-  const [sectorBounds, setSectorBounds] = useState<SectorBounds | null>(null);
 
   useEffect(() => {
     void load();
@@ -59,23 +51,9 @@ export function MapPage() {
     }, {});
   }, [jobs]);
 
-  const companiesById = useMemo(() => {
-    return companies.reduce<Record<number, Company>>((accumulator, company) => {
-      accumulator[company.id] = company;
-      return accumulator;
-    }, {});
-  }, [companies]);
-
   const filteredCompanies = useMemo(() => {
     return companies.filter((company) => companyMatches(company, jobsByCompany[company.id] ?? [], filters));
   }, [companies, filters, jobsByCompany]);
-
-  const filteredJobs = useMemo(() => {
-    return jobs
-      .filter((job) => jobMatches(job, filters))
-      .filter((job) => jobInSector(job, companiesById, sectorBounds))
-      .sort(compareJobs);
-  }, [companiesById, jobs, filters, sectorBounds]);
 
   useEffect(() => {
     if (selected && filteredCompanies.some((company) => company.id === selected.id)) {
@@ -85,7 +63,9 @@ export function MapPage() {
   }, [filteredCompanies, selected]);
 
   const markerGroups = useMemo(() => groupCompanies(filteredCompanies), [filteredCompanies]);
-  const sortedCompanies = useMemo(() => [...filteredCompanies].sort(compareCompanies), [filteredCompanies]);
+  const sortedCompanies = useMemo(() => [...filteredCompanies].sort((left, right) => compareCompanies(left, right, jobsByCompany)), [filteredCompanies, jobsByCompany]);
+  const selectedJobs = useMemo(() => selected ? [...(jobsByCompany[selected.id] ?? [])].sort(compareJobs) : [], [jobsByCompany, selected]);
+  const visibleJobCount = useMemo(() => filteredCompanies.reduce((sum, company) => sum + (jobsByCompany[company.id]?.length ?? 0), 0), [filteredCompanies, jobsByCompany]);
   const center = markerGroups[0] ? [markerGroups[0].lat, markerGroups[0].lng] as [number, number] : [48.5839, 7.7455] as [number, number];
 
   return (
@@ -93,12 +73,9 @@ export function MapPage() {
       <div className="page-header">
         <div>
           <h1>Carte</h1>
-          <p className="muted">{filteredCompanies.length} entreprises et {filteredJobs.length} offres après filtres.</p>
+          <p className="muted">{filteredCompanies.length} entreprises et {visibleJobCount} offres liées après filtres.</p>
         </div>
-        <button type="button" onClick={() => {
-          setFilters(emptyFilters);
-          setSectorBounds(null);
-        }}>Réinitialiser</button>
+        <button type="button" onClick={() => setFilters(emptyFilters)}>Réinitialiser</button>
       </div>
 
       <section className="panel">
@@ -109,42 +86,38 @@ export function MapPage() {
 
       <div className="map-layout">
         <div className="map-main-column">
-        <section className="map-shell">
-          <MapContainer center={center} zoom={10} scrollWheelZoom>
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <ScaleControl />
-            <SectorButton active={Boolean(sectorBounds)} onUpdate={setSectorBounds} />
-            {markerGroups.map((group) => (
-              <Marker
-                key={group.key}
-                position={[group.lat, group.lng]}
-                icon={markerIcon(domainColor(group.companies[0].domain), group.companies.length)}
-                eventHandlers={{ click: () => setSelected(group.companies[0]) }}
-              >
-                <Popup>
-                  <div className="popup-content">
-                    {group.companies.slice(0, 5).map((company) => (
-                      <div key={company.id}>
-                        <strong>{company.name}</strong>
-                        <br />
-                        {company.domain} · {company.city} · {company.score?.globalScore ?? '-'} / 100
-                        <br />
-                        <button type="button" onClick={() => setSelected(company)}>Voir détail</button>
-                      </div>
-                    ))}
-                    {group.companies.length > 5 && (
-                      <p className="muted popup-more">et {group.companies.length - 5} autres entreprises</p>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        </section>
-        {selectedJob && <JobDetail job={selectedJob} />}
+          <section className="map-shell">
+            <MapContainer center={center} zoom={10} scrollWheelZoom>
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <ScaleControl />
+              {markerGroups.map((group) => (
+                <Marker
+                  key={group.key}
+                  position={[group.lat, group.lng]}
+                  icon={markerIcon(domainColor(group.companies[0].domain), group.companies.length)}
+                  eventHandlers={{ click: () => setSelected(group.companies[0]) }}
+                >
+                  <Popup>
+                    <div className="popup-content">
+                      {group.companies.slice(0, 5).map((company) => (
+                        <div key={company.id}>
+                          <strong>{company.name}</strong>
+                          <br />
+                          {company.domain} · {company.city} · score {companyEffectiveScore(company, jobsByCompany[company.id] ?? [])}
+                        </div>
+                      ))}
+                      {group.companies.length > 5 && (
+                        <p className="muted popup-more">et {group.companies.length - 5} autres entreprises</p>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
+          </section>
         </div>
 
         <aside className="panel side-list">
@@ -155,45 +128,15 @@ export function MapPage() {
                 <span className="domain-dot" style={{ background: domainColor(company.domain) }} />
                 {company.domain} · {company.city}
               </p>
-              <p className="muted">{company.jobCount} offres · score {company.score?.globalScore ?? '-'}</p>
+              <p className="muted">{jobsByCompany[company.id]?.length ?? 0} offres · score {companyEffectiveScore(company, jobsByCompany[company.id] ?? [])}</p>
             </div>
           ))}
         </aside>
       </div>
 
       <div className="map-detail-wide">
-        <CompanyDetail company={selected} />
+        <CompanyDetail company={selected} jobs={selectedJobs} />
       </div>
-
-      <section className="panel">
-        <h2>Offres filtrées</h2>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Titre</th>
-                <th>Entreprise</th>
-                <th>Localisation</th>
-                <th>Séniorité</th>
-                <th>Stack</th>
-                <th>Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredJobs.map((job) => (
-                <tr key={job.id} className="clickable" onClick={() => setSelectedJob(job)}>
-                  <td>{job.url ? <a href={job.url} target="_blank" rel="noreferrer">{job.title}</a> : job.title}</td>
-                  <td>{job.companyName}</td>
-                  <td>{job.location ?? '-'}</td>
-                  <td>{job.seniority ?? '-'}</td>
-                  <td>{formatList(job.stack)}</td>
-                  <td>{job.score?.globalScore ?? '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </>
   );
 }
@@ -212,8 +155,7 @@ function FilterControls({
   const options = {
     domains: unique(companies.map((company) => company.domain)),
     stacks: unique(companies.flatMap((company) => company.knownStack).concat(jobs.flatMap((job) => job.stack))),
-    seniorities: unique(jobs.map((job) => job.seniority ?? '')),
-    remotes: unique(jobs.map((job) => job.remotePolicy ?? ''))
+    seniorities: unique(jobs.map((job) => job.seniority ?? ''))
   };
 
   function update<K extends keyof Filters>(key: K, value: Filters[K]) {
@@ -225,10 +167,10 @@ function FilterControls({
       <DomainFilterChips values={filters.domains} options={options.domains} onChange={(value) => update('domains', value)} />
       <StackFilterInput values={filters.stacks} options={options.stacks} onChange={(value) => update('stacks', value)} />
       <div className="filter-row">
-      <Select label="Séniorité" value={filters.seniority} values={options.seniorities} onChange={(value) => update('seniority', value)} />
-      <Select label="Télétravail" value={filters.remote} values={options.remotes} onChange={(value) => update('remote', value)} />
-      <ScoreStepper value={filters.minScore} onChange={(value) => update('minScore', value)} />
-      <SearchFilter value={filters.search} onChange={(value) => update('search', value)} />
+        <Select label="Séniorité" value={filters.seniority} values={options.seniorities} onChange={(value) => update('seniority', value)} />
+        <JobPresenceSelect value={filters.jobPresence} onChange={(value) => update('jobPresence', value)} />
+        <ScoreStepper value={filters.minScore} onChange={(value) => update('minScore', value)} />
+        <SearchFilter value={filters.search} onChange={(value) => update('search', value)} />
       </div>
     </div>
   );
@@ -371,50 +313,42 @@ function Select({ label, value, values, onChange }: { label: string; value: stri
   );
 }
 
+function JobPresenceSelect({ value, onChange }: { value: JobPresenceFilter; onChange: (value: JobPresenceFilter) => void }) {
+  return (
+    <label>
+      Offres
+      <select value={value} onChange={(event) => onChange(event.target.value as JobPresenceFilter)}>
+        <option value="all">Toutes</option>
+        <option value="with">Avec offres</option>
+        <option value="without">Sans offre</option>
+      </select>
+    </label>
+  );
+}
+
 function companyMatches(company: Company, companyJobs: Job[], filters: Filters) {
   const minScore = Number(filters.minScore || 0);
   if (filters.domains.length > 0 && !filters.domains.some((domain) => normalize(company.domain) === normalize(domain))) return false;
-  if (filters.minScore && (company.score?.globalScore ?? 0) < minScore) return false;
+  if (companyEffectiveScore(company, companyJobs) < minScore) return false;
+  if (filters.jobPresence === 'with' && companyJobs.length === 0) return false;
+  if (filters.jobPresence === 'without' && companyJobs.length > 0) return false;
   if (filters.stacks.length > 0 && !filters.stacks.every((stack) => includesValue(company.knownStack, stack) || companyJobs.some((job) => includesValue(job.stack, stack)))) return false;
   if (filters.seniority && !companyJobs.some((job) => normalize(job.seniority) === normalize(filters.seniority))) return false;
-  if (filters.remote && !companyJobs.some((job) => normalize(job.remotePolicy) === normalize(filters.remote))) return false;
   if (filters.search && !matchesText(filters.search, company.name, company.city, company.domain, company.knownStack.join(' '), company.notes ?? '', companyJobs.map((job) => `${job.title} ${job.stack.join(' ')}`).join(' '))) return false;
   return true;
 }
 
-function jobMatches(job: Job, filters: Filters) {
-  const minScore = Number(filters.minScore || 0);
-  if (filters.domains.length > 0 && !filters.domains.some((domain) => normalize(job.companyDomain) === normalize(domain))) return false;
-  if (filters.minScore && (job.score?.globalScore ?? 0) < minScore) return false;
-  if (filters.stacks.length > 0 && !filters.stacks.every((stack) => includesValue(job.stack, stack))) return false;
-  if (filters.seniority && normalize(job.seniority) !== normalize(filters.seniority)) return false;
-  if (filters.remote && normalize(job.remotePolicy) !== normalize(filters.remote)) return false;
-  if (filters.search && !matchesText(filters.search, job.title, job.companyName, job.location ?? '', job.jobType ?? '', job.stack.join(' '), job.description ?? '')) return false;
-  return true;
-}
-
-function jobInSector(job: Job, companiesById: Record<number, Company>, bounds: SectorBounds | null) {
-  if (!bounds) {
-    return true;
-  }
-
-  const company = companiesById[job.companyId];
-  if (company?.latitude == null || company.longitude == null) {
-    return false;
-  }
-
-  return company.latitude <= bounds.north
-    && company.latitude >= bounds.south
-    && company.longitude <= bounds.east
-    && company.longitude >= bounds.west;
-}
-
-function compareCompanies(left: Company, right: Company) {
-  return (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0) || right.jobCount - left.jobCount;
+function compareCompanies(left: Company, right: Company, jobsByCompany: Record<number, Job[]>) {
+  return companyEffectiveScore(right, jobsByCompany[right.id] ?? []) - companyEffectiveScore(left, jobsByCompany[left.id] ?? [])
+    || (jobsByCompany[right.id]?.length ?? 0) - (jobsByCompany[left.id]?.length ?? 0);
 }
 
 function compareJobs(left: Job, right: Job) {
-  return (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0);
+  return (right.score?.globalScore ?? 0) - (left.score?.globalScore ?? 0) || left.title.localeCompare(right.title);
+}
+
+function companyEffectiveScore(company: Company, jobs: Job[]) {
+  return Math.max(company.score?.globalScore ?? 0, ...jobs.map((job) => job.score?.globalScore ?? 0));
 }
 
 function includesValue(values: string[], expected: string) {
@@ -451,28 +385,6 @@ function markerIcon(color: string, count: number) {
     iconSize: [28, 28],
     iconAnchor: [14, 28]
   });
-}
-
-function SectorButton({ active, onUpdate }: { active: boolean; onUpdate: (bounds: SectorBounds) => void }) {
-  const map = useMap();
-
-  function updateSector() {
-    const bounds = map.getBounds();
-    onUpdate({
-      north: bounds.getNorth(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      west: bounds.getWest()
-    });
-  }
-
-  return (
-    <div className="map-sector-action leaflet-control">
-      <button type="button" className={active ? 'active' : ''} onClick={updateSector}>
-        Actualiser les offres du secteur
-      </button>
-    </div>
-  );
 }
 
 function ScaleControl() {

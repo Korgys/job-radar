@@ -71,7 +71,7 @@ public sealed class CvParsingService : ICvParsingService
         if (!extension.Equals(".txt", StringComparison.OrdinalIgnoreCase)
             && !extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Formats CV supportés en V0.2 : .txt et .md. PDF/DOCX sont volontairement isolés derrière l'interface ICvParsingService.");
+            throw new InvalidOperationException("Formats CV supportés en V0.3 : .txt et .md. PDF/DOCX sont volontairement isolés derrière l'interface ICvParsingService.");
         }
 
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
@@ -83,6 +83,33 @@ public sealed class CvParsingService : ICvParsingService
 
         var parsed = ParseText(rawText);
         return await SaveProfileAsync(parsed);
+    }
+
+    public async Task<CandidateProfileDto> UpdateLatestProfileAsync(UpdateCandidateProfileRequest request)
+    {
+        using var connection = _database.OpenConnection();
+        var profileId = await GetLatestProfileIdAsync(connection)
+            ?? throw new InvalidOperationException("Aucun CV importe.");
+
+        var now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE candidate_profiles
+            SET detected_skills = $skills,
+                detected_domains = $domains,
+                detected_seniority = $seniority,
+                updated_at = $now
+            WHERE id = $id;
+            """;
+        command.Parameters.AddWithValue("$skills", NormalizeProfileList(request.DetectedSkills));
+        command.Parameters.AddWithValue("$domains", NormalizeProfileList(request.DetectedDomains));
+        command.Parameters.AddWithValue("$seniority", request.DetectedSeniority?.Trim() ?? "");
+        command.Parameters.AddWithValue("$now", now);
+        command.Parameters.AddWithValue("$id", profileId);
+        await command.ExecuteNonQueryAsync();
+
+        return await ReadProfileByIdAsync(connection, profileId)
+            ?? throw new InvalidOperationException("Profil introuvable.");
     }
 
     public ParsedCv ParseText(string rawText)
@@ -187,6 +214,65 @@ public sealed class CvParsingService : ICvParsingService
         var selected = lines.Take(6);
         var summary = string.Join(" ", selected);
         return summary.Length <= 700 ? summary : summary[..700];
+    }
+
+    private static async Task<int?> GetLatestProfileIdAsync(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT id FROM candidate_profiles ORDER BY created_at DESC LIMIT 1;";
+        var value = await command.ExecuteScalarAsync();
+        return value is null ? null : Convert.ToInt32(value);
+    }
+
+    private static async Task<CandidateProfileDto?> ReadProfileByIdAsync(SqliteConnection connection, int id)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT * FROM candidate_profiles WHERE id = $id LIMIT 1;";
+        command.Parameters.AddWithValue("$id", id);
+
+        using var reader = await command.ExecuteReaderAsync();
+        return await reader.ReadAsync() ? MapProfile(reader) : null;
+    }
+
+    private static CandidateProfileDto MapProfile(SqliteDataReader reader)
+    {
+        return new CandidateProfileDto(
+            ReadInt(reader, "id"),
+            ReadString(reader, "raw_text"),
+            RadarText.SplitList(ReadString(reader, "detected_skills")),
+            RadarText.SplitList(ReadString(reader, "detected_roles")),
+            RadarText.SplitList(ReadString(reader, "detected_domains")),
+            ReadString(reader, "detected_seniority"),
+            ReadNullableString(reader, "experiences_summary"),
+            ReadDateTime(reader, "created_at") ?? DateTime.MinValue,
+            ReadDateTime(reader, "updated_at") ?? DateTime.MinValue);
+    }
+
+    private static string NormalizeProfileList(IEnumerable<string>? values)
+    {
+        return RadarText.JoinList(values ?? Array.Empty<string>());
+    }
+
+    private static int ReadInt(SqliteDataReader reader, string name)
+    {
+        return Convert.ToInt32(reader.GetValue(reader.GetOrdinal(name)));
+    }
+
+    private static string ReadString(SqliteDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal) ? "" : reader.GetString(ordinal);
+    }
+
+    private static string? ReadNullableString(SqliteDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+    }
+
+    private static DateTime? ReadDateTime(SqliteDataReader reader, string name)
+    {
+        return DateTime.TryParse(ReadNullableString(reader, name), out var date) ? date : null;
     }
 
     private sealed record KeywordDefinition(string Name, IReadOnlyList<string> Aliases);

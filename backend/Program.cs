@@ -1,4 +1,5 @@
 using JobRadarLocal.Data;
+using JobRadarLocal.Dtos;
 using JobRadarLocal.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -93,6 +94,18 @@ app.MapPost("/api/profile/import-cv", async (HttpRequest request, ICvParsingServ
     catch (InvalidOperationException exception)
     {
         return Results.BadRequest(new { error = exception.Message });
+    }
+});
+
+app.MapPut("/api/profile", async (UpdateCandidateProfileRequest request, ICvParsingService parser) =>
+{
+    try
+    {
+        return Results.Ok(await parser.UpdateLatestProfileAsync(request));
+    }
+    catch (InvalidOperationException exception) when (exception.Message.Contains("Aucun CV", StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.NotFound(new { error = exception.Message });
     }
 });
 

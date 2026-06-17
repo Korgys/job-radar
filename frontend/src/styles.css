@@ -704,6 +704,28 @@ tr.clickable:hover {
   width: 100%;
 }
 
+.profile-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.profile-form h2,
+.profile-readonly {
+  margin: 0;
+}
+
+.profile-combo {
+  color: #42525d;
+  display: grid;
+  font-size: 0.86rem;
+  gap: 0.28rem;
+}
+
+.profile-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .map-layout {
   display: grid;
   gap: 1rem;
@@ -718,6 +740,162 @@ tr.clickable:hover {
 
 .map-detail-wide {
   margin: 1rem 0;
+}
+
+.map-detail-wide > .company-detail-card {
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.map-detail-wide .company-detail-header {
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.map-detail-wide .company-identity {
+  gap: 0.65rem;
+}
+
+.map-detail-wide .company-identity h2 {
+  font-size: 1.2rem;
+}
+
+.map-detail-wide .company-initials {
+  flex-basis: 46px;
+  height: 46px;
+  width: 46px;
+}
+
+.map-detail-wide .detail-logo {
+  max-height: 48px;
+  max-width: 120px;
+}
+
+.map-detail-wide .priority-badge {
+  min-width: 150px;
+  padding: 0.48rem 0.65rem;
+}
+
+.map-detail-wide .company-detail-sections {
+  align-items: start;
+  display: grid;
+  gap: 0.7rem 1rem;
+  grid-template-areas:
+    "score jobs actions"
+    "domains jobs notes"
+    "stack jobs analysis";
+  grid-template-columns: minmax(210px, 0.7fr) minmax(360px, 1.35fr) minmax(260px, 0.95fr);
+}
+
+.map-detail-wide .detail-section {
+  border-bottom: 0;
+  gap: 0.38rem;
+  min-width: 0;
+  padding-bottom: 0;
+}
+
+.map-detail-wide .detail-section h3 {
+  font-size: 0.84rem;
+}
+
+.map-detail-wide .detail-section-score {
+  grid-area: score;
+}
+
+.map-detail-wide .detail-section-domains {
+  grid-area: domains;
+}
+
+.map-detail-wide .detail-section-stack {
+  grid-area: stack;
+}
+
+.map-detail-wide .detail-section-jobs {
+  grid-area: jobs;
+}
+
+.map-detail-wide .detail-section-actions {
+  grid-area: actions;
+}
+
+.map-detail-wide .detail-section-notes {
+  grid-area: notes;
+}
+
+.map-detail-wide .detail-section-analysis {
+  grid-area: analysis;
+}
+
+.map-detail-wide .score-help {
+  display: none;
+}
+
+.map-detail-wide .score-breakdown {
+  gap: 0.4rem;
+}
+
+.map-detail-wide .score-row {
+  gap: 0.18rem;
+}
+
+.map-detail-wide .score-row > div:first-child {
+  font-size: 0.8rem;
+}
+
+.map-detail-wide .info-chip-list {
+  gap: 0.35rem;
+}
+
+.map-detail-wide .info-chip {
+  font-size: 0.76rem;
+  padding: 0.18rem 0.48rem;
+}
+
+.map-detail-wide .linked-job-list {
+  gap: 0.35rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  max-height: 330px;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.map-detail-wide .linked-job-list li {
+  padding: 0.45rem 0.55rem;
+}
+
+.map-detail-wide .linked-job-list div {
+  gap: 0.12rem;
+}
+
+.map-detail-wide .linked-job-list a,
+.map-detail-wide .linked-job-list strong {
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.map-detail-wide .linked-job-list span,
+.map-detail-wide .detail-note,
+.map-detail-wide .detail-empty,
+.map-detail-wide .analysis-block li {
+  font-size: 0.82rem;
+}
+
+.map-detail-wide .analysis-block {
+  gap: 0.22rem;
+}
+
+.map-detail-wide .analysis-block ul {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.map-detail-wide .company-actions {
+  gap: 0.35rem;
+}
+
+.map-detail-wide .secondary-action {
+  padding: 0.34rem 0.52rem;
 }
 
 .map-shell {
@@ -932,6 +1110,30 @@ tr.clickable:hover {
 .linked-jobs,
 .detail-empty {
   margin: 0;
+}
+
+.linked-job-list {
+  display: grid;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.linked-job-list li {
+  border: 1px solid #e3eaed;
+  border-radius: 6px;
+  padding: 0.55rem 0.65rem;
+}
+
+.linked-job-list div {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.linked-job-list span {
+  color: #61717d;
+  font-size: 0.84rem;
 }
 
 .info-chip-list {
@@ -1198,6 +1400,22 @@ tr.clickable:hover {
   .map-filter-panel,
   .filter-row {
     grid-template-columns: 1fr;
+  }
+
+  .map-detail-wide .company-detail-sections {
+    grid-template-areas:
+      "score"
+      "jobs"
+      "domains"
+      "stack"
+      "actions"
+      "notes"
+      "analysis";
+    grid-template-columns: 1fr;
+  }
+
+  .map-detail-wide .linked-job-list {
+    max-height: none;
   }
 }
 

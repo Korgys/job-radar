@@ -65,6 +65,12 @@ export type CandidateProfile = {
   updatedAt: string;
 };
 
+export type UpdateProfileRequest = {
+  detectedSkills: string[];
+  detectedDomains: string[];
+  detectedSeniority: string;
+};
+
 export type ImportResult = {
   imported: number;
   updated: number;

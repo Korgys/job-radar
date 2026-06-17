@@ -144,6 +144,38 @@ public sealed class ScoringServiceTests
         Assert.Equal(0, score.SalaryScore);
     }
 
+    [Fact]
+    public void CalculateCompanyScore_UsesBestLinkedJobScoreAsGlobalFloor()
+    {
+        var service = new ScoringService(null!, null!);
+        var profile = new CandidateProfileDto(
+            1,
+            "CV",
+            ["COBOL"],
+            ["développeur backend"],
+            ["banque"],
+            "senior",
+            "Résumé",
+            DateTime.UtcNow,
+            DateTime.UtcNow);
+        var company = CreateCompany(
+            domain: "Industrie",
+            stack: ["SAP"],
+            careerUrl: null,
+            linkedinUrl: null,
+            website: null,
+            notes: null);
+        var job = CreateJob("Backend Java", "backend", ["Java"]) with
+        {
+            Score = new ScoreDto(85, 30, 20, 10, 25, 0, 0, 0, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>())
+        };
+
+        var score = service.CalculateCompanyScore(profile, company, [job]);
+
+        Assert.Equal(85, score.GlobalScore);
+        Assert.Contains(score.PositiveReasons, reason => reason.Contains("meilleure offre", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static CandidateProfileDto CreateProfile()
     {
         return new CandidateProfileDto(

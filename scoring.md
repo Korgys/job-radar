@@ -17,6 +17,8 @@ Detail domaine :
 - domaine proche : 21 points ;
 - domaine non aligne ou non renseigne : 0 point.
 
+Si une entreprise a des offres liees, son score global est au minimum le meilleur score global de ses offres. Les rubriques technique et domaine restent le detail propre a l'entreprise.
+
 ## Offres
 
 Score total : 100 points.

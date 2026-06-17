@@ -1,6 +1,6 @@
 # Job Radar Local
 
-Application web locale V0.2 pour importer des entreprises, des offres et un CV, calculer des scores de compatibilite, visualiser les entreprises sur une carte Leaflet avec OpenStreetMap et generer un rapport Markdown.
+Application web locale V0.3 pour importer des entreprises, des offres et un CV, ajuster le profil extrait, calculer des scores de compatibilite, visualiser les entreprises sur une carte Leaflet avec OpenStreetMap et generer un rapport Markdown.
 
 ## Prerequis
 
@@ -41,6 +41,8 @@ http://127.0.0.1:5087
 
 La page `/map` utilise OpenStreetMap via Leaflet. Un acces reseau est necessaire pour charger les tuiles.
 
+Le filtre `Offres` permet d'afficher toutes les entreprises, uniquement celles avec offres liees, ou uniquement celles sans offre. Le detail d'une entreprise liste ses offres liees.
+
 Les donnees entreprises, offres, scores et rapports restent stockes localement.
 
 ## Notation
@@ -52,9 +54,10 @@ Le systeme de notation est decrit dans [scoring.md](scoring.md).
 1. Aller dans `/companies` et importer `data/samples/strasbourg-area-companies.csv`.
 2. Aller dans `/jobs` et importer `data/samples/strasbourg-area-jobs.csv`.
 3. Aller dans `/profile` et importer `data/samples/cv.txt`.
-4. Recalculer les scores depuis `/dashboard` ou `/jobs`.
-5. Aller dans `/map` pour voir les entreprises et filtrer les resultats.
-6. Aller dans `/report` et generer un rapport Markdown.
+4. Ajuster si besoin la seniorite, les competences ou les domaines dans `Profil extrait`.
+5. Recalculer les scores depuis `/dashboard` ou `/jobs`.
+6. Aller dans `/map` pour voir les entreprises, filtrer les resultats et consulter les offres liees.
+7. Aller dans `/report` et generer un rapport Markdown.
 
 Les rapports sont ecrits dans :
 
@@ -106,6 +109,7 @@ Champs obligatoires : `name`, `domain`, `city`, `latitude`, `longitude`.
 Listes separees par `;` : `secondary_domains`, `known_stack`.
 
 Une entreprise deja presente avec le meme nom et la meme ville est mise a jour.
+Les noms d'entreprises sont compares avec une normalisation de suffixes courants pour eviter les doublons entre une offre et une fiche entreprise deja importee.
 
 ### Offres
 
@@ -123,12 +127,14 @@ Les doublons sont evites avec la combinaison `company_name + title + url`.
 
 ## CV
 
-Formats supportes en V0.2 :
+Formats supportes en V0.3 :
 
 - `.txt`
 - `.md`
 
 PDF et DOCX ne sont pas parses dans cette version. Le parsing est isole derriere `ICvParsingService` pour permettre un ajout ulterieur sans modifier les endpoints.
+
+Apres import, la section `Profil extrait` permet de corriger la seniorite, les competences et les domaines detectes. Recalculer les scores apres modification pour appliquer ces changements aux entreprises et offres.
 
 Le CV fourni est fictif et ne doit pas contenir de donnees personnelles. Vous pouvez bien sûr utiliser l'application avec votre propre CV mais ne l'archivez pas dans le répertoire Git.
 

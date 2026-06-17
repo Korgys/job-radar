@@ -93,6 +93,7 @@ public sealed class CsvImportServiceTests
     [InlineData("Hager", "Hager Group", "Obernai")]
     [InlineData("Objectware Strasbourg", "Objectware", "Strasbourg")]
     [InlineData("SFEIR Est", "SFEIR", "Schiltigheim")]
+    [InlineData("Acme", "Acme Digital Est", "Strasbourg")]
     public async Task ImportJobsAsync_AttachesAliasToExistingCompany(string companyName, string jobCompanyName, string city)
     {
         var directory = CreateTempDirectory();

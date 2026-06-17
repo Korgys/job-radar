@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api } from '../api';
 import { ImportBox } from '../components/ImportBox';
-import type { Company, Score } from '../types';
+import type { Company, Job, Score } from '../types';
 import { domainColor, formatList, matchesText } from './shared';
 
 type CompanySortKey = 'name' | 'domain' | 'city' | 'stack' | 'jobCount' | 'score';
@@ -176,7 +176,7 @@ function compareValues(left: string | number, right: string | number) {
   return String(left).localeCompare(String(right), 'fr', { sensitivity: 'base', numeric: true });
 }
 
-export function CompanyDetail({ company }: { company: Company | null }) {
+export function CompanyDetail({ company, jobs }: { company: Company | null; jobs?: Job[] }) {
   if (!company) {
     return (
       <aside className="panel company-detail-card company-detail-empty">
@@ -190,19 +190,17 @@ export function CompanyDetail({ company }: { company: Company | null }) {
       <CompanyDetailHeader company={company} />
       <div className="company-detail-sections">
         <ScoreBreakdown score={company.score} />
-        <DetailSection title="Domaines secondaires">
+        <DetailSection title="Domaines secondaires" className="detail-section-domains">
           <InfoChips values={company.secondaryDomains} />
         </DetailSection>
-        <DetailSection title="Stack connue">
+        <DetailSection title="Stack connue" className="detail-section-stack">
           <InfoChips values={company.knownStack} limit={8} />
         </DetailSection>
-        <DetailSection title="Offres liées">
-          <p className="linked-jobs">
-            {company.jobCount > 0 ? `${company.jobCount} offre${company.jobCount > 1 ? 's' : ''}` : 'Aucune offre liée détectée pour le moment.'}
-          </p>
+        <DetailSection title="Offres liées" className="detail-section-jobs">
+          <LinkedJobs count={company.jobCount} jobs={jobs} />
         </DetailSection>
         <CompanyLinks company={company} />
-        <DetailSection title="Notes">
+        <DetailSection title="Notes" className="detail-section-notes">
           <p className="detail-note">{company.notes || 'Aucune note renseignée.'}</p>
         </DetailSection>
         <AnalysisQuick score={company.score} />
@@ -282,12 +280,39 @@ function OfferCount({ count }: { count: number }) {
   return <span className={count > 0 ? 'offer-count has-offers' : 'offer-count'}>{count}</span>;
 }
 
-function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+function DetailSection({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <section className="detail-section">
+    <section className={`detail-section ${className}`}>
       <h3>{title}</h3>
       {children}
     </section>
+  );
+}
+
+function LinkedJobs({ count, jobs }: { count: number; jobs?: Job[] }) {
+  if (!jobs) {
+    return (
+      <p className="linked-jobs">
+        {count > 0 ? `${count} offre${count > 1 ? 's' : ''}` : 'Aucune offre liée détectée pour le moment.'}
+      </p>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return <p className="muted detail-empty">Aucune offre liée détectée pour le moment.</p>;
+  }
+
+  return (
+    <ul className="linked-job-list">
+      {jobs.map((job) => (
+        <li key={job.id}>
+          <div>
+            {job.url ? <a href={job.url} target="_blank" rel="noreferrer">{job.title}</a> : <strong>{job.title}</strong>}
+            <span>{job.seniority ?? 'Séniorité non renseignée'} · score {job.score?.globalScore ?? '-'}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -321,7 +346,7 @@ function CompanyLinks({ company }: { company: Company }) {
   }
 
   return (
-    <DetailSection title="Actions">
+    <DetailSection title="Actions" className="detail-section-actions">
       <div className="company-actions">
         {links.map(([label, url]) => (
           <a key={label} className="secondary-action" href={url ?? '#'} target="_blank" rel="noopener noreferrer" aria-label={`Ouvrir ${label} dans un nouvel onglet`}>
@@ -335,7 +360,7 @@ function CompanyLinks({ company }: { company: Company }) {
 
 function ScoreBreakdown({ score }: { score?: Score | null }) {
   if (!score) {
-    return <DetailSection title="Détail du score"><p className="muted detail-empty">Score non calculé.</p></DetailSection>;
+    return <DetailSection title="Détail du score" className="detail-section-score"><p className="muted detail-empty">Score non calculé.</p></DetailSection>;
   }
 
   const items = [
@@ -344,7 +369,7 @@ function ScoreBreakdown({ score }: { score?: Score | null }) {
   ] as const;
 
   return (
-    <DetailSection title="Détail du score">
+    <DetailSection title="Détail du score" className="detail-section-score">
       <p className="muted score-help">Ce score sert à prioriser les entreprises selon les données disponibles.</p>
       <div className="score-breakdown">
         {items.map(([label, value, max]) => (
@@ -369,7 +394,7 @@ function AnalysisQuick({ score }: { score?: Score | null }) {
   }
 
   return (
-    <DetailSection title="Analyse rapide">
+    <DetailSection title="Analyse rapide" className="detail-section-analysis">
       <ReasonList title="Points forts" values={score.positiveReasons} tone="positive" />
       <ReasonList title="Points faibles" values={score.negativeReasons} tone="negative" />
       <div className="analysis-block">

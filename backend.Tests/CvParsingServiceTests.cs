@@ -1,4 +1,8 @@
+using System.Text;
+using JobRadarLocal.Data;
+using JobRadarLocal.Dtos;
 using JobRadarLocal.Services;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace JobRadarLocal.Tests;
@@ -20,5 +24,43 @@ public sealed class CvParsingServiceTests
         Assert.Contains("tech lead", parsed.Roles);
         Assert.Contains("banque", parsed.Domains);
         Assert.Equal("lead", parsed.Seniority);
+    }
+
+    [Fact]
+    public async Task UpdateLatestProfileAsync_UpdatesEditableProfileFields()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var parser = new CvParsingService(database);
+
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Développeur junior C# en banque."));
+            await parser.ImportAsync("cv.txt", stream);
+
+            var updated = await parser.UpdateLatestProfileAsync(new UpdateCandidateProfileRequest(
+                ["C#", "React", "C#"],
+                ["finance"],
+                "senior"));
+
+            Assert.Equal(["C#", "React"], updated.DetectedSkills);
+            Assert.Equal(["finance"], updated.DetectedDomains);
+            Assert.Equal("senior", updated.DetectedSeniority);
+            Assert.NotNull(updated.ExperiencesSummary);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static string CreateTempDirectory()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "job-radar-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        return directory;
     }
 }

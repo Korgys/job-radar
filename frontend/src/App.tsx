@@ -43,7 +43,7 @@ export function App() {
           <span className="brand-mark">JR</span>
           <div className="brand-text">
             <strong>Job Radar Local</strong>
-            <small>V0.2.0</small>
+            <small>V0.3.0</small>
           </div>
         </div>
         <button
