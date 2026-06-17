@@ -5,6 +5,7 @@ import type { DashboardStats, ReportFile } from '../types';
 export function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState<'success' | 'error'>('success');
 
   useEffect(() => {
     void load();
@@ -15,25 +16,40 @@ export function DashboardPage() {
   }
 
   async function recalculate() {
-    setMessage('');
+    clearMessage();
     try {
       const result = await api.recalculate();
-      setMessage(`${result.companyScores} scores entreprises et ${result.jobScores} scores offres recalculés.`);
+      showSuccess(`${result.companyScores} scores entreprises et ${result.jobScores} scores offres recalculés.`);
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Recalcul impossible.');
+      showError(error instanceof Error ? error.message : 'Recalcul impossible.');
     }
   }
 
   async function generateReport() {
-    setMessage('');
+    clearMessage();
     try {
       const report: ReportFile = await api.generateReport();
-      setMessage(`Rapport généré : ${report.fileName}`);
+      showSuccess(`Rapport généré : ${report.fileName}`);
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Génération impossible.');
+      showError(error instanceof Error ? error.message : 'Génération impossible.');
     }
+  }
+
+  function clearMessage() {
+    setMessage('');
+    setMessageType('success');
+  }
+
+  function showSuccess(nextMessage: string) {
+    setMessage(nextMessage);
+    setMessageType('success');
+  }
+
+  function showError(nextMessage: string) {
+    setMessage(nextMessage);
+    setMessageType('error');
   }
 
   return (
@@ -49,7 +65,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {message && <p className="status">{message}</p>}
+      {message && <p className={`status ${messageType === 'error' ? 'status-error' : 'status-success'}`} role={messageType === 'error' ? 'alert' : 'status'}>{message}</p>}
 
       <div className="grid three">
         <Stat label="Entreprises" value={stats?.companyCount ?? 0} />

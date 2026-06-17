@@ -121,17 +121,21 @@ app.MapPost("/api/scoring/recalculate", async (ScoringService scoring) =>
     }
 });
 
-app.MapPost("/api/reports/generate", async (ScoringService scoring, ReportService reports) =>
+app.MapPost("/api/reports/generate", async (bool allowUnscored, ScoringService scoring, ReportService reports) =>
 {
     try
     {
         await scoring.RecalculateAsync();
+        return Results.Ok(await reports.GenerateAsync(scoringIsCurrent: true));
+    }
+    catch (InvalidOperationException) when (allowUnscored)
+    {
+        return Results.Ok(await reports.GenerateAsync(scoringIsCurrent: false));
     }
     catch (InvalidOperationException)
     {
+        return Results.BadRequest(new { error = "Importez un CV avant de générer un rapport scoré." });
     }
-
-    return Results.Ok(await reports.GenerateAsync());
 });
 
 app.MapGet("/api/reports", async (RadarQueryService queries) =>

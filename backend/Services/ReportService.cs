@@ -19,7 +19,7 @@ public sealed class ReportService
         _queries = queries;
     }
 
-    public async Task<ReportFileDto> GenerateAsync()
+    public async Task<ReportFileDto> GenerateAsync(bool scoringIsCurrent = true)
     {
         _paths.EnsureDirectories();
 
@@ -30,7 +30,7 @@ public sealed class ReportService
         var uniqueSuffix = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture)[..6];
         var fileName = $"job-radar-report-{now:yyyyMMdd-HHmmss}-{uniqueSuffix}.md";
         var path = Path.Combine(_paths.ReportsDirectory, fileName);
-        var markdown = BuildMarkdown(now, companies, jobs, profile);
+        var markdown = BuildMarkdown(now, companies, jobs, profile, scoringIsCurrent);
 
         await File.WriteAllTextAsync(path, markdown, Encoding.UTF8);
         await SaveReportFileAsync(fileName, path, now);
@@ -38,7 +38,7 @@ public sealed class ReportService
         return new ReportFileDto(fileName, now);
     }
 
-    public string BuildMarkdown(DateTime generatedAt, IReadOnlyList<CompanyDto> companies, IReadOnlyList<JobDto> jobs, CandidateProfileDto? profile)
+    public string BuildMarkdown(DateTime generatedAt, IReadOnlyList<CompanyDto> companies, IReadOnlyList<JobDto> jobs, CandidateProfileDto? profile, bool scoringIsCurrent = true)
     {
         var topCompanies = companies
             .Where(company => company.Score is not null)
@@ -59,6 +59,13 @@ public sealed class ReportService
         builder.AppendLine();
         builder.AppendLine($"Date de génération : {generatedAt:yyyy-MM-dd HH:mm}");
         builder.AppendLine();
+
+        if (!scoringIsCurrent)
+        {
+            builder.AppendLine("> ⚠️ Rapport non scoré : aucun CV candidat n’a été importé, les scores ne sont pas recalculés et le rapport ne contient pas de scoring à jour.");
+            builder.AppendLine();
+        }
+
         builder.AppendLine("## Synthèse");
         builder.AppendLine();
         builder.AppendLine($"- Nombre d’entreprises analysées : {companies.Count}");
