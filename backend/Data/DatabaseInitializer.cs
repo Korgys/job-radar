@@ -75,6 +75,9 @@ public sealed class DatabaseInitializer
                 detected_domains TEXT NOT NULL DEFAULT '',
                 detected_seniority TEXT NOT NULL DEFAULT '',
                 experiences_summary TEXT NULL,
+                preferred_locations TEXT NOT NULL DEFAULT '',
+                remote_preference TEXT NULL,
+                target_salary REAL NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -123,8 +126,29 @@ public sealed class DatabaseInitializer
             );
             """;
         command.ExecuteNonQuery();
+        EnsureCandidatePreferenceColumns(connection);
         NormalizeExistingStacks(connection);
         EnsureJobDedupeIndexes(connection);
+    }
+
+    private static void EnsureCandidatePreferenceColumns(SqliteConnection connection)
+    {
+        EnsureColumn(connection, "candidate_profiles", "preferred_locations", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(connection, "candidate_profiles", "remote_preference", "TEXT NULL");
+        EnsureColumn(connection, "candidate_profiles", "target_salary", "REAL NULL");
+    }
+
+    private static void EnsureColumn(SqliteConnection connection, string table, string column, string definition)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+        try
+        {
+            command.ExecuteNonQuery();
+        }
+        catch (SqliteException exception) when (exception.SqliteErrorCode == 1 && exception.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+        {
+        }
     }
 
     private static void EnsureJobDedupeIndexes(SqliteConnection connection)

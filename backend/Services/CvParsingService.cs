@@ -99,6 +99,9 @@ public sealed class CvParsingService : ICvParsingService
                 detected_roles = $roles,
                 detected_domains = $domains,
                 detected_seniority = $seniority,
+                preferred_locations = $locations,
+                remote_preference = $remote,
+                target_salary = $salary,
                 updated_at = $now
             WHERE id = $id;
             """;
@@ -106,6 +109,9 @@ public sealed class CvParsingService : ICvParsingService
         command.Parameters.AddWithValue("$roles", NormalizeProfileList(request.DetectedRoles));
         command.Parameters.AddWithValue("$domains", NormalizeProfileList(request.DetectedDomains));
         command.Parameters.AddWithValue("$seniority", request.DetectedSeniority?.Trim() ?? "");
+        command.Parameters.AddWithValue("$locations", NormalizeProfileList(request.PreferredLocations));
+        command.Parameters.AddWithValue("$remote", (object?)request.RemotePreference?.Trim() ?? DBNull.Value);
+        command.Parameters.AddWithValue("$salary", (object?)request.TargetSalary ?? DBNull.Value);
         command.Parameters.AddWithValue("$now", now);
         command.Parameters.AddWithValue("$id", profileId);
         await command.ExecuteNonQueryAsync();
@@ -155,6 +161,9 @@ public sealed class CvParsingService : ICvParsingService
             parsed.Domains,
             parsed.Seniority,
             parsed.ExperiencesSummary,
+            Array.Empty<string>(),
+            null,
+            null,
             DateTime.Parse(now, CultureInfo.InvariantCulture),
             DateTime.Parse(now, CultureInfo.InvariantCulture));
     }
@@ -246,6 +255,9 @@ public sealed class CvParsingService : ICvParsingService
             RadarText.SplitList(ReadString(reader, "detected_domains")),
             ReadString(reader, "detected_seniority"),
             ReadNullableString(reader, "experiences_summary"),
+            RadarText.SplitList(ReadString(reader, "preferred_locations")),
+            ReadNullableString(reader, "remote_preference"),
+            ReadDecimal(reader, "target_salary"),
             ReadDateTime(reader, "created_at") ?? DateTime.MinValue,
             ReadDateTime(reader, "updated_at") ?? DateTime.MinValue);
     }
@@ -270,6 +282,12 @@ public sealed class CvParsingService : ICvParsingService
     {
         var ordinal = reader.GetOrdinal(name);
         return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
+    }
+
+    private static decimal? ReadDecimal(SqliteDataReader reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal) ? null : Convert.ToDecimal(reader.GetValue(ordinal));
     }
 
     private static DateTime? ReadDateTime(SqliteDataReader reader, string name)

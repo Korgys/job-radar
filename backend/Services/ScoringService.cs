@@ -59,7 +59,8 @@ public sealed class ScoringService
 
         var stackResult = ScoreCompanyStack(profile.DetectedSkills, targetStack, positive, negative);
         var domainScore = ScoreCompanyDomain(profile.DetectedDomains, company, positive, negative);
-        var companyScore = stackResult.Score + domainScore;
+        var strategicScore = ScoreCompanyStrategic(profile, company, jobs, positive, negative);
+        var companyScore = stackResult.Score + domainScore + strategicScore;
         var bestJobScore = jobs.Select(job => job.Score?.GlobalScore ?? 0).DefaultIfEmpty(0).Max();
         var global = Math.Max(companyScore, bestJobScore);
 
@@ -76,7 +77,7 @@ public sealed class ScoringService
             0,
             0,
             0,
-            0,
+            strategicScore,
             positive,
             negative,
             stackResult.MissingSkills);
@@ -86,11 +87,14 @@ public sealed class ScoringService
     {
         var positive = new List<string>();
         var negative = new List<string>();
-        var stackResult = ScoreStack(profile.DetectedSkills, job.Stack, 40, positive, negative);
-        var seniorityScore = ScoreJobSeniority(profile.DetectedSeniority, job, 30, positive, negative);
-        var roleScore = ScoreJobRole(profile.DetectedRoles, job, 20, positive, negative);
+        var stackResult = ScoreStack(profile.DetectedSkills, job.Stack, 35, positive, negative);
+        var seniorityScore = ScoreJobSeniority(profile.DetectedSeniority, job, 25, positive, negative);
+        var roleScore = ScoreJobRole(profile.DetectedRoles, job, 15, positive, negative);
         var domainScore = ScoreDomain(profile.DetectedDomains, job.CompanyDomain, 10, positive, negative);
-        var global = stackResult.Score + seniorityScore + roleScore + domainScore;
+        var locationScore = ScoreJobLocation(profile, job, positive, negative);
+        var salaryScore = ScoreJobSalary(profile, job, positive, negative);
+        var strategicScore = ScoreJobStrategic(job, positive, negative);
+        var global = stackResult.Score + seniorityScore + roleScore + domainScore + locationScore + salaryScore + strategicScore;
 
         return new ScoreDto(
             Math.Clamp(global, 0, 100),
@@ -98,9 +102,9 @@ public sealed class ScoringService
             roleScore,
             domainScore,
             seniorityScore,
-            0,
-            0,
-            0,
+            locationScore,
+            salaryScore,
+            strategicScore,
             positive,
             negative,
             stackResult.MissingSkills);
@@ -154,7 +158,7 @@ public sealed class ScoringService
         var matching = target.Where(skill => candidateKeys.Contains(NormalizeSkill(skill))).ToArray();
         var missing = target.Where(skill => !candidateKeys.Contains(NormalizeSkill(skill))).ToArray();
         var expectedMatches = Math.Min(5, target.Length);
-        var score = (int)Math.Round(70 * Math.Min(matching.Length, expectedMatches) / (double)expectedMatches);
+        var score = (int)Math.Round(60 * Math.Min(matching.Length, expectedMatches) / (double)expectedMatches);
 
         if (matching.Length > 0)
         {
@@ -187,18 +191,108 @@ public sealed class ScoringService
         if (exactMatch is not null)
         {
             positive.Add($"Domaine cohérent : {exactMatch}.");
-            return 30;
+            return 25;
         }
 
         var relatedMatch = companyDomains.FirstOrDefault(domain => normalizedCandidateDomains.Any(candidate => DomainsAreRelated(candidate, domain)));
         if (relatedMatch is not null)
         {
             positive.Add($"Domaine proche du profil : {relatedMatch}.");
-            return 21;
+            return 18;
         }
 
         negative.Add($"Domaine moins aligné : {company.Domain}.");
         return 0;
+    }
+
+    private static int ScoreJobLocation(CandidateProfileDto profile, JobDto job, List<string> positive, List<string> negative)
+    {
+        var remote = RadarText.NormalizeSearch(job.RemotePolicy);
+        var preference = RadarText.NormalizeSearch(profile.RemotePreference);
+        var locations = profile.PreferredLocations.Select(RadarText.NormalizeSearch).Where(v => v.Length > 0).ToArray();
+        var jobLocation = RadarText.NormalizeSearch(job.Location);
+
+        if (preference.Contains("remote", StringComparison.Ordinal) || preference.Contains("teletravail", StringComparison.Ordinal))
+        {
+            if (ContainsAny(remote, "remote", "full remote", "teletravail", "hybride", "hybrid"))
+            {
+                positive.Add("Localisation compatible avec la préférence télétravail.");
+                return 5;
+            }
+        }
+
+        if (locations.Length > 0 && locations.Any(location => jobLocation.Contains(location, StringComparison.Ordinal)))
+        {
+            positive.Add($"Localisation alignée : {job.Location}.");
+            return 5;
+        }
+
+        if (locations.Length == 0 && string.IsNullOrWhiteSpace(profile.RemotePreference))
+        {
+            negative.Add("Préférences de localisation non renseignées.");
+            return 0;
+        }
+
+        negative.Add("Localisation moins alignée avec les préférences.");
+        return 0;
+    }
+
+    private static int ScoreJobSalary(CandidateProfileDto profile, JobDto job, List<string> positive, List<string> negative)
+    {
+        if (profile.TargetSalary is null)
+        {
+            negative.Add("Salaire cible non renseigné.");
+            return 0;
+        }
+
+        var bestSalary = job.SalaryMax ?? job.SalaryMin;
+        if (bestSalary is null)
+        {
+            negative.Add("Salaire offre non renseigné.");
+            return 0;
+        }
+
+        if (bestSalary >= profile.TargetSalary)
+        {
+            positive.Add($"Salaire compatible avec la cible de {profile.TargetSalary:0}.");
+            return 5;
+        }
+
+        var ratio = bestSalary.Value / profile.TargetSalary.Value;
+        if (ratio >= 0.9m)
+        {
+            positive.Add("Salaire proche de la cible.");
+            return 3;
+        }
+
+        negative.Add("Salaire sous la cible.");
+        return 0;
+    }
+
+    private static int ScoreJobStrategic(JobDto job, List<string> positive, List<string> negative)
+    {
+        var score = 0;
+        if (!string.IsNullOrWhiteSpace(job.Url)) score += 2;
+        if (!string.IsNullOrWhiteSpace(job.Description) && job.Description.Length >= 80) score += 2;
+        if (job.PublicationDate is not null && job.PublicationDate >= DateTime.UtcNow.AddDays(-45)) score += 1;
+
+        if (score > 0) positive.Add($"Signal stratégique offre : {score}/5.");
+        else negative.Add("Peu de signaux stratégiques sur l'offre.");
+        return score;
+    }
+
+    private static int ScoreCompanyStrategic(CandidateProfileDto profile, CompanyDto company, IReadOnlyList<JobDto> jobs, List<string> positive, List<string> negative)
+    {
+        var score = 0;
+        if (profile.DetectedDomains.Any(domain => DomainsAreRelated(RadarText.NormalizeSearch(domain), company.Domain))) score += 5;
+        if (!string.IsNullOrWhiteSpace(company.CareerUrl)) score += 4;
+        if (!string.IsNullOrWhiteSpace(company.Notes)) score += 3;
+        if (company.JobCount > 0 || jobs.Count > 0) score += 3;
+        score = Math.Min(score, 15);
+
+        if (score > 0) positive.Add($"Signaux stratégiques entreprise : {score}/15.");
+        else negative.Add("Peu de signaux stratégiques entreprise.");
+        return score;
     }
 
     private static int ScoreJobRole(IReadOnlyList<string> candidateRoles, JobDto job, int maxPoints, List<string> positive, List<string> negative)

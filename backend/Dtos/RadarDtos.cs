@@ -60,6 +60,9 @@ public sealed record CandidateProfileDto(
     IReadOnlyList<string> DetectedDomains,
     string DetectedSeniority,
     string? ExperiencesSummary,
+    IReadOnlyList<string> PreferredLocations,
+    string? RemotePreference,
+    decimal? TargetSalary,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
@@ -67,7 +70,10 @@ public sealed record UpdateCandidateProfileRequest(
     IReadOnlyList<string>? DetectedSkills,
     IReadOnlyList<string>? DetectedRoles,
     IReadOnlyList<string>? DetectedDomains,
-    string? DetectedSeniority);
+    string? DetectedSeniority,
+    IReadOnlyList<string>? PreferredLocations,
+    string? RemotePreference,
+    decimal? TargetSalary);
 
 public sealed record ReportFileDto(string FileName, DateTime CreatedAt);
 

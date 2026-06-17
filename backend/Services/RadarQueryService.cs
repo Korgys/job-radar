@@ -109,6 +109,9 @@ public sealed class RadarQueryService
             RadarText.SplitList(ReadString(reader, "detected_domains")),
             ReadString(reader, "detected_seniority"),
             ReadNullableString(reader, "experiences_summary"),
+            RadarText.SplitList(ReadString(reader, "preferred_locations")),
+            ReadNullableString(reader, "remote_preference"),
+            ReadDecimal(reader, "target_salary"),
             ReadDateTime(reader, "created_at") ?? DateTime.MinValue,
             ReadDateTime(reader, "updated_at") ?? DateTime.MinValue);
     }

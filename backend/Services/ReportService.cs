@@ -104,6 +104,7 @@ public sealed class ReportService
             builder.AppendLine($"- Ville : {company.City}");
             builder.AppendLine($"- Domaine : {company.Domain}");
             builder.AppendLine($"- Score global : {score.GlobalScore}/100");
+            builder.AppendLine($"- Détail score : technique {score.StackScore}/60, domaine {score.DomainScore}/25, stratégique {score.StrategicScore}/15");
             builder.AppendLine($"- Stack connue : {FormatList(company.KnownStack)}");
             builder.AppendLine($"- Nombre d’offres : {company.JobCount}");
             builder.AppendLine($"- Raisons principales : {FormatList(score.PositiveReasons.Take(3))}");
@@ -137,6 +138,7 @@ public sealed class ReportService
             builder.AppendLine($"- Séniorité : {job.Seniority ?? "Non renseignée"}");
             builder.AppendLine($"- Stack : {FormatList(job.Stack)}");
             builder.AppendLine($"- Score global : {score.GlobalScore}/100");
+            builder.AppendLine($"- Détail score : technique {score.StackScore}/35, expérience {score.SeniorityScore}/25, rôle {score.RoleScore}/15, domaine {score.DomainScore}/10, localisation {score.LocationScore}/5, salaire {score.SalaryScore}/5, stratégique {score.StrategicScore}/5");
             builder.AppendLine($"- Raisons principales : {FormatList(score.PositiveReasons.Take(3))}");
             builder.AppendLine($"- Compétences manquantes : {FormatList(score.MissingSkills.Take(8))}");
             builder.AppendLine($"- Lien vers l’offre : {FormatLink(job.Url, "Offre")}");

@@ -61,6 +61,9 @@ export type CandidateProfile = {
   detectedDomains: string[];
   detectedSeniority: string;
   experiencesSummary?: string | null;
+  preferredLocations: string[];
+  remotePreference?: string | null;
+  targetSalary?: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -70,6 +73,9 @@ export type UpdateProfileRequest = {
   detectedRoles: string[];
   detectedDomains: string[];
   detectedSeniority: string;
+  preferredLocations: string[];
+  remotePreference?: string | null;
+  targetSalary?: number | null;
 };
 
 export type ImportResult = {

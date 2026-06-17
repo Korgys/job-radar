@@ -365,8 +365,9 @@ function ScoreBreakdown({ score }: { score?: Score | null }) {
   }
 
   const items = [
-    ['Technique', score.stackScore, 70],
-    ['Domaine', score.domainScore, 30]
+    ['Technique', score.stackScore, 60],
+    ['Domaine', score.domainScore, 25],
+    ['Stratégique', score.strategicScore, 15]
   ] as const;
 
   return (

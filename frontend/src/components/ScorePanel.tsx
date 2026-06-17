@@ -9,10 +9,13 @@ export function ScorePanel({ score }: { score?: Score | null }) {
     <div className="score-panel">
       <div className="score-main">{score.globalScore}/100</div>
       <div className="score-grid">
-        <span>Technique {score.stackScore}/40</span>
-        <span>Expérience {score.seniorityScore}/30</span>
-        <span>Rôle {score.roleScore}/20</span>
+        <span>Technique {score.stackScore}/35</span>
+        <span>Expérience {score.seniorityScore}/25</span>
+        <span>Rôle {score.roleScore}/15</span>
         <span>Domaine {score.domainScore}/10</span>
+        <span>Localisation {score.locationScore}/5</span>
+        <span>Salaire {score.salaryScore}/5</span>
+        <span>Stratégique {score.strategicScore}/5</span>
       </div>
       <ReasonList title="Points forts" values={score.positiveReasons} />
       <ReasonList title="Points faibles" values={score.negativeReasons} />

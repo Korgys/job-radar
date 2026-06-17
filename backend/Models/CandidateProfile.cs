@@ -9,6 +9,9 @@ public sealed class CandidateProfile
     public string DetectedDomains { get; set; } = "";
     public string DetectedSeniority { get; set; } = "";
     public string? ExperiencesSummary { get; set; }
+    public string PreferredLocations { get; set; } = "";
+    public string? RemotePreference { get; set; }
+    public decimal? TargetSalary { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

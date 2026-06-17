@@ -10,13 +10,19 @@ type ProfileDraft = {
   detectedRoles: string[];
   detectedDomains: string[];
   detectedSeniority: string;
+  preferredLocations: string[];
+  remotePreference: string;
+  targetSalary: string;
 };
 
 const emptyDraft: ProfileDraft = {
   detectedSkills: [],
   detectedRoles: [],
   detectedDomains: [],
-  detectedSeniority: ''
+  detectedSeniority: '',
+  preferredLocations: [],
+  remotePreference: '',
+  targetSalary: ''
 };
 
 const seniorityOptions = ['', 'junior', 'confirmé', 'senior', 'lead'];
@@ -72,7 +78,11 @@ export function ProfilePage() {
     setMessage('');
     setError('');
     try {
-      const updated = await api.updateProfile(draft);
+      const updated = await api.updateProfile({
+        ...draft,
+        remotePreference: draft.remotePreference.trim() || null,
+        targetSalary: draft.targetSalary.trim() ? Number(draft.targetSalary) : null
+      });
       setProfile(updated);
       setMessage('Profil mis à jour.');
     } catch (nextError) {
@@ -129,6 +139,34 @@ export function ProfilePage() {
                 placeholder="Ajouter un rôle"
                 onChange={(detectedRoles) => setDraft({ ...draft, detectedRoles })}
               />
+              <EditableTagList
+                label="Localisations préférées"
+                values={draft.preferredLocations}
+                options={[]}
+                datalistId="profile-location-options"
+                placeholder="Ajouter une ville ou région"
+                onChange={(preferredLocations) => setDraft({ ...draft, preferredLocations })}
+              />
+              <label>
+                Préférence télétravail
+                <input
+                  value={draft.remotePreference}
+                  maxLength={80}
+                  onChange={(event) => setDraft({ ...draft, remotePreference: event.target.value })}
+                  placeholder="remote, hybride, présentiel..."
+                />
+              </label>
+              <label>
+                Salaire cible annuel
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={draft.targetSalary}
+                  onChange={(event) => setDraft({ ...draft, targetSalary: event.target.value })}
+                  placeholder="60000"
+                />
+              </label>
               <EditableTagList
                 label="Domaines"
                 values={draft.detectedDomains}
@@ -223,7 +261,10 @@ function toDraft(profile: CandidateProfile): ProfileDraft {
     detectedSkills: profile.detectedSkills,
     detectedRoles: profile.detectedRoles,
     detectedDomains: profile.detectedDomains,
-    detectedSeniority: profile.detectedSeniority
+    detectedSeniority: profile.detectedSeniority,
+    preferredLocations: profile.preferredLocations ?? [],
+    remotePreference: profile.remotePreference ?? '',
+    targetSalary: profile.targetSalary?.toString() ?? ''
   };
 }
 
