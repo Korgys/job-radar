@@ -450,31 +450,32 @@ public sealed class CsvImportService
 
     private static async Task<bool> UpsertJobAsync(SqliteConnection connection, SqliteTransaction transaction, JobImportRow job)
     {
-        var existingJobId = await FindJobIdAsync(connection, transaction, job.CompanyId, job.Title, job.Url);
         var now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
-        if (existingJobId is not null)
+        using var update = connection.CreateCommand();
+        update.Transaction = transaction;
+        update.CommandText = """
+            UPDATE jobs
+            SET company_name = $companyName,
+                location = $location,
+                remote_policy = $remotePolicy,
+                contract = $contract,
+                salary_min = $salaryMin,
+                salary_max = $salaryMax,
+                seniority = $seniority,
+                job_type = $jobType,
+                stack = $stack,
+                description = $description,
+                publication_date = $publicationDate,
+                updated_at = $now
+            WHERE ($hasUrl = 1 AND lower(url) = lower($url))
+               OR ($hasUrl = 0 AND company_id = $companyId AND lower(title) = lower($title) AND (url IS NULL OR trim(url) = ''));
+            """;
+        AddJobParameters(update, job, now);
+        update.Parameters.AddWithValue("$hasUrl", string.IsNullOrWhiteSpace(job.Url) ? 0 : 1);
+
+        if (await update.ExecuteNonQueryAsync() > 0)
         {
-            using var update = connection.CreateCommand();
-            update.Transaction = transaction;
-            update.CommandText = """
-                UPDATE jobs
-                SET location = $location,
-                    remote_policy = $remotePolicy,
-                    contract = $contract,
-                    salary_min = $salaryMin,
-                    salary_max = $salaryMax,
-                    seniority = $seniority,
-                    job_type = $jobType,
-                    stack = $stack,
-                    description = $description,
-                    publication_date = $publicationDate,
-                    updated_at = $now
-                WHERE id = $id;
-                """;
-            AddJobParameters(update, job, now);
-            update.Parameters.AddWithValue("$id", existingJobId.Value);
-            await update.ExecuteNonQueryAsync();
             return true;
         }
 
@@ -486,7 +487,33 @@ public sealed class CsvImportService
                  job_type, stack, description, url, publication_date, created_at, updated_at)
             VALUES
                 ($companyId, $companyName, $title, $location, $remotePolicy, $contract, $salaryMin, $salaryMax, $seniority,
-                 $jobType, $stack, $description, $url, $publicationDate, $now, $now);
+                 $jobType, $stack, $description, $url, $publicationDate, $now, $now)
+            ON CONFLICT(lower(url)) WHERE url IS NOT NULL AND trim(url) <> '' DO UPDATE SET
+                company_name = excluded.company_name,
+                location = excluded.location,
+                remote_policy = excluded.remote_policy,
+                contract = excluded.contract,
+                salary_min = excluded.salary_min,
+                salary_max = excluded.salary_max,
+                seniority = excluded.seniority,
+                job_type = excluded.job_type,
+                stack = excluded.stack,
+                description = excluded.description,
+                publication_date = excluded.publication_date,
+                updated_at = excluded.updated_at
+            ON CONFLICT(company_id, lower(title)) WHERE url IS NULL OR trim(url) = '' DO UPDATE SET
+                company_name = excluded.company_name,
+                location = excluded.location,
+                remote_policy = excluded.remote_policy,
+                contract = excluded.contract,
+                salary_min = excluded.salary_min,
+                salary_max = excluded.salary_max,
+                seniority = excluded.seniority,
+                job_type = excluded.job_type,
+                stack = excluded.stack,
+                description = excluded.description,
+                publication_date = excluded.publication_date,
+                updated_at = excluded.updated_at;
             """;
         AddJobParameters(insert, job, now);
         await insert.ExecuteNonQueryAsync();

@@ -125,6 +125,44 @@ public sealed class CsvImportServiceTests
     }
 
     [Fact]
+    public async Task ImportJobsAsync_ImportingSameJobTwicePersistsSingleRow()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var imports = new CsvImportService(database);
+            var queries = new RadarQueryService(database, paths);
+
+            const string jobsCsv = """
+                company_name,title,location,remote_policy,contract,salary_min,salary_max,seniority,job_type,stack,description,url,publication_date
+                Test Corp,Développeur C#,Strasbourg,hybrid,CDI,45000,55000,confirmed,backend,C#;.NET,Description,https://example.test/jobs/duplicate,2026-01-15
+                """;
+
+            await using var firstJobsStream = new MemoryStream(Encoding.UTF8.GetBytes(jobsCsv));
+            var firstResult = await imports.ImportJobsAsync(firstJobsStream);
+            await using var secondJobsStream = new MemoryStream(Encoding.UTF8.GetBytes(jobsCsv));
+            var secondResult = await imports.ImportJobsAsync(secondJobsStream);
+            var jobs = await queries.GetJobsAsync();
+
+            Assert.Equal(1, firstResult.Imported);
+            Assert.Equal(0, firstResult.Updated);
+            Assert.Equal(0, secondResult.Imported);
+            Assert.Equal(1, secondResult.Updated);
+            Assert.Equal(0, secondResult.Skipped);
+            Assert.Single(jobs);
+            Assert.Equal("https://example.test/jobs/duplicate", jobs[0].Url);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ImportJobsAsync_ReimportSameUrlUpdatesStackSalaryAndReportsUpdated()
     {
         var directory = CreateTempDirectory();

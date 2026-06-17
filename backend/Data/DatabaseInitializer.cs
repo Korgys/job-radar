@@ -66,7 +66,6 @@ public sealed class DatabaseInitializer
             );
 
             CREATE INDEX IF NOT EXISTS idx_jobs_company ON jobs(company_id);
-            CREATE INDEX IF NOT EXISTS idx_jobs_dedupe ON jobs(company_name, title, url);
 
             CREATE TABLE IF NOT EXISTS candidate_profiles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,6 +124,58 @@ public sealed class DatabaseInitializer
             """;
         command.ExecuteNonQuery();
         NormalizeExistingStacks(connection);
+        EnsureJobDedupeIndexes(connection);
+    }
+
+    private static void EnsureJobDedupeIndexes(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            DROP INDEX IF EXISTS idx_jobs_dedupe;
+
+            DELETE FROM jobs
+            WHERE id IN (
+                SELECT jobs.id
+                FROM jobs
+                INNER JOIN (
+                    SELECT lower(url) AS dedupe_url, min(id) AS keep_id
+                    FROM jobs
+                    WHERE url IS NOT NULL AND trim(url) <> ''
+                    GROUP BY lower(url)
+                    HAVING count(*) > 1
+                ) duplicates
+                    ON lower(jobs.url) = duplicates.dedupe_url
+                WHERE jobs.id <> duplicates.keep_id
+                  AND jobs.url IS NOT NULL
+                  AND trim(jobs.url) <> ''
+            );
+
+            DELETE FROM jobs
+            WHERE id IN (
+                SELECT jobs.id
+                FROM jobs
+                INNER JOIN (
+                    SELECT company_id, lower(title) AS dedupe_title, min(id) AS keep_id
+                    FROM jobs
+                    WHERE url IS NULL OR trim(url) = ''
+                    GROUP BY company_id, lower(title)
+                    HAVING count(*) > 1
+                ) duplicates
+                    ON jobs.company_id = duplicates.company_id
+                   AND lower(jobs.title) = duplicates.dedupe_title
+                WHERE jobs.id <> duplicates.keep_id
+                  AND (jobs.url IS NULL OR trim(jobs.url) = '')
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_unique_url
+            ON jobs(lower(url))
+            WHERE url IS NOT NULL AND trim(url) <> '';
+
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_unique_company_title_without_url
+            ON jobs(company_id, lower(title))
+            WHERE url IS NULL OR trim(url) = '';
+            """;
+        command.ExecuteNonQuery();
     }
 
     private static void NormalizeExistingStacks(SqliteConnection connection)
