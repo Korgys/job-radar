@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using JobRadarLocal.Data;
 using JobRadarLocal.Dtos;
 using Microsoft.Data.Sqlite;
@@ -54,22 +55,18 @@ public sealed class ScoringService
             .ToArray();
 
         var stackResult = ScoreCompanyStack(profile.DetectedSkills, targetStack, positive, negative);
-        var opportunitiesScore = ScoreCompanyOpportunities(jobs, positive, negative);
         var domainScore = ScoreCompanyDomain(profile.DetectedDomains, company, positive, negative);
-        var roleScore = ScoreCompanyRoles(profile.DetectedRoles, jobs, positive, negative);
-        var locationScore = ScoreCompanyLocation(company, jobs, positive, negative);
-        var dataQualityScore = ScoreCompanyActionability(company, targetStack, positive, negative);
-        var global = stackResult.Score + opportunitiesScore + domainScore + roleScore + locationScore + dataQualityScore;
+        var global = stackResult.Score + domainScore;
 
         return new ScoreDto(
             Math.Clamp(global, 0, 100),
             stackResult.Score,
-            roleScore,
+            0,
             domainScore,
             0,
-            locationScore,
-            dataQualityScore,
-            opportunitiesScore,
+            0,
+            0,
+            0,
             positive,
             negative,
             stackResult.MissingSkills);
@@ -79,13 +76,11 @@ public sealed class ScoringService
     {
         var positive = new List<string>();
         var negative = new List<string>();
-        var stackResult = ScoreStack(profile.DetectedSkills, job.Stack, 35, positive, negative);
-        var roleScore = ScoreRoles(profile.DetectedRoles, [job.Title, job.JobType ?? "", job.Description ?? ""], 25, positive, negative);
-        var seniorityScore = ScoreSeniority(profile.DetectedSeniority, job.Seniority, 15, positive, negative);
+        var stackResult = ScoreStack(profile.DetectedSkills, job.Stack, 40, positive, negative);
+        var seniorityScore = ScoreJobSeniority(profile.DetectedSeniority, job, 30, positive, negative);
+        var roleScore = ScoreJobRole(profile.DetectedRoles, job, 20, positive, negative);
         var domainScore = ScoreDomain(profile.DetectedDomains, job.CompanyDomain, 10, positive, negative);
-        var locationScore = ScoreRemoteOrLocation(job.RemotePolicy, job.Location, 10, positive, negative);
-        var salaryScore = ScoreSalary(job, positive, negative);
-        var global = stackResult.Score + roleScore + seniorityScore + domainScore + locationScore + salaryScore;
+        var global = stackResult.Score + seniorityScore + roleScore + domainScore;
 
         return new ScoreDto(
             Math.Clamp(global, 0, 100),
@@ -93,8 +88,8 @@ public sealed class ScoringService
             roleScore,
             domainScore,
             seniorityScore,
-            locationScore,
-            salaryScore,
+            0,
+            0,
             0,
             positive,
             negative,
@@ -149,7 +144,7 @@ public sealed class ScoringService
         var matching = target.Where(skill => candidateKeys.Contains(NormalizeSkill(skill))).ToArray();
         var missing = target.Where(skill => !candidateKeys.Contains(NormalizeSkill(skill))).ToArray();
         var expectedMatches = Math.Min(5, target.Length);
-        var score = (int)Math.Round(30 * Math.Min(matching.Length, expectedMatches) / (double)expectedMatches);
+        var score = (int)Math.Round(70 * Math.Min(matching.Length, expectedMatches) / (double)expectedMatches);
 
         if (matching.Length > 0)
         {
@@ -213,14 +208,14 @@ public sealed class ScoringService
         if (exactMatch is not null)
         {
             positive.Add($"Domaine cohérent : {exactMatch}.");
-            return 15;
+            return 30;
         }
 
         var relatedMatch = companyDomains.FirstOrDefault(domain => normalizedCandidateDomains.Any(candidate => DomainsAreRelated(candidate, domain)));
         if (relatedMatch is not null)
         {
             positive.Add($"Domaine proche du profil : {relatedMatch}.");
-            return 11;
+            return 21;
         }
 
         negative.Add($"Domaine moins aligné : {company.Domain}.");
@@ -236,6 +231,38 @@ public sealed class ScoringService
         }
 
         return ScoreRoles(candidateRoles, jobs.SelectMany(job => new[] { job.Title, job.JobType ?? "", job.Description ?? "" }), 10, positive, negative);
+    }
+
+    private static int ScoreJobRole(IReadOnlyList<string> candidateRoles, JobDto job, int maxPoints, List<string> positive, List<string> negative)
+    {
+        var targetRole = DetectRoleCategory([job.Title, job.JobType ?? "", job.Description ?? ""]);
+        if (targetRole.Length == 0)
+        {
+            negative.Add("Type de poste non renseigné.");
+            return 0;
+        }
+
+        var candidateRoleCategories = candidateRoles
+            .Select(role => DetectRoleCategory([role]))
+            .Where(role => role.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (candidateRoleCategories.Contains(targetRole, StringComparer.Ordinal))
+        {
+            positive.Add($"Rôle aligné : {RoleLabel(targetRole)}.");
+            return maxPoints;
+        }
+
+        var partialRole = candidateRoleCategories.FirstOrDefault(candidateRole => RolesAreAdjacent(candidateRole, targetRole));
+        if (partialRole is not null)
+        {
+            positive.Add($"Rôle partiellement aligné : {RoleLabel(partialRole)} vers {RoleLabel(targetRole)}.");
+            return maxPoints / 2;
+        }
+
+        negative.Add($"Rôle moins aligné : {RoleLabel(targetRole)}.");
+        return 0;
     }
 
     private static int ScoreDomain(IReadOnlyList<string> candidateDomains, string companyDomain, int maxPoints, List<string> positive, List<string> negative)
@@ -380,6 +407,66 @@ public sealed class ScoringService
         return score;
     }
 
+    private static int ScoreJobSeniority(string detectedSeniority, JobDto job, int maxPoints, List<string> positive, List<string> negative)
+    {
+        var targetRank = SeniorityRank(job.Seniority);
+        var inferred = false;
+        if (targetRank == 0)
+        {
+            targetRank = SeniorityRank($"{job.Title} {job.Description}");
+        }
+
+        if (targetRank == 0)
+        {
+            targetRank = 2;
+            inferred = true;
+        }
+
+        var candidateRank = SeniorityRank(detectedSeniority);
+        var score = ScoreSeniorityRank(candidateRank, targetRank, maxPoints);
+
+        if (score == maxPoints)
+        {
+            positive.Add(inferred ? "Expérience cohérente avec l'hypothèse confirmé / 3-4 ans." : "Expérience cohérente.");
+        }
+        else if (score >= 10)
+        {
+            negative.Add(inferred ? "Expérience partiellement alignée avec l'hypothèse confirmé / 3-4 ans." : "Expérience partiellement alignée.");
+        }
+        else
+        {
+            negative.Add("Expérience non compatible avec le niveau attendu.");
+        }
+
+        return score;
+    }
+
+    private static int ScoreSeniorityRank(int candidateRank, int targetRank, int maxPoints)
+    {
+        if (candidateRank == 0)
+        {
+            return 10;
+        }
+
+        var gap = targetRank - candidateRank;
+        if (gap <= 0)
+        {
+            return maxPoints;
+        }
+
+        if (gap == 1)
+        {
+            return 20;
+        }
+
+        if (gap == 2)
+        {
+            return 10;
+        }
+
+        return 0;
+    }
+
     private static int ScoreSeniorityValue(string detectedSeniority, string? targetSeniority)
     {
         if (string.IsNullOrWhiteSpace(targetSeniority))
@@ -441,11 +528,66 @@ public sealed class ScoringService
     private static int SeniorityRank(string? value)
     {
         var normalized = RadarText.NormalizeSearch(value);
+        var years = Regex.Matches(normalized, @"(\d{1,2})\s*(ans|annees|annee|years|year)")
+            .Select(match => int.TryParse(match.Groups[1].Value, out var parsed) ? parsed : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+
         if (normalized.Contains("lead", StringComparison.Ordinal)) return 4;
-        if (normalized.Contains("senior", StringComparison.Ordinal)) return 3;
-        if (normalized.Contains("confirme", StringComparison.Ordinal) || normalized.Contains("intermediaire", StringComparison.Ordinal)) return 2;
-        if (normalized.Contains("junior", StringComparison.Ordinal)) return 1;
+        if (normalized.Contains("senior", StringComparison.Ordinal) || years >= 8) return 3;
+        if (normalized.Contains("confirme", StringComparison.Ordinal)
+            || normalized.Contains("confirmed", StringComparison.Ordinal)
+            || normalized.Contains("intermediaire", StringComparison.Ordinal)
+            || normalized.Contains("intermediate", StringComparison.Ordinal)
+            || normalized.Contains("middle", StringComparison.Ordinal)
+            || normalized.Contains("mid", StringComparison.Ordinal)
+            || years >= 3) return 2;
+        if (normalized.Contains("junior", StringComparison.Ordinal)
+            || normalized.Contains("debutant", StringComparison.Ordinal)
+            || normalized.Contains("entry", StringComparison.Ordinal)
+            || years > 0) return 1;
         return 0;
+    }
+
+    private static string DetectRoleCategory(IEnumerable<string> texts)
+    {
+        var normalized = RadarText.NormalizeSearch(string.Join(" ", texts));
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "";
+        }
+
+        if (ContainsAny(normalized, "devops", "ci/cd", "kubernetes", "docker", "sre")) return "devops";
+        if (ContainsAny(normalized, "cyber", "securite", "security")) return "security";
+        if (ContainsAny(normalized, "data engineer", "etl", "pipeline")) return "data";
+        if (ContainsAny(normalized, "analytics", "bi", "dbt")) return "analytics";
+        if (ContainsAny(normalized, "tech lead", "lead developer", "lead dev", "architecte", "lead")) return "lead";
+        if (ContainsAny(normalized, "fullstack", "full stack")) return "fullstack";
+        if (ContainsAny(normalized, "backend", "back-end", "back end", "api", "asp.net", ".net", "c#", "software engineer")) return "backend";
+        if (ContainsAny(normalized, "frontend", "front-end", "front end", "react", "angular", "typescript", "javascript")) return "frontend";
+        return "";
+    }
+
+    private static bool RolesAreAdjacent(string candidateRole, string targetRole)
+    {
+        return (candidateRole is "backend" or "frontend" && targetRole == "fullstack")
+            || (candidateRole == "fullstack" && targetRole is "backend" or "frontend");
+    }
+
+    private static string RoleLabel(string role)
+    {
+        return role switch
+        {
+            "backend" => "backend",
+            "frontend" => "frontend",
+            "fullstack" => "fullstack",
+            "devops" => "devops",
+            "security" => "cybersécurité",
+            "data" => "data",
+            "analytics" => "analytics",
+            "lead" => "lead",
+            _ => "non renseigné"
+        };
     }
 
     private static bool ContainsAny(string value, params string[] candidates)

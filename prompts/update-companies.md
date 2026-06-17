@@ -79,7 +79,7 @@ Ne pas inclure :
    - Service public
    - Energie
    - Retail
-   - Télécoms
+   - Communication
    - Transport
    - Conseil
    - Autre

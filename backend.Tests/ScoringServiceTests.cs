@@ -42,9 +42,53 @@ public sealed class ScoringServiceTests
 
         var score = service.CalculateJobScore(profile, job);
 
-        Assert.True(score.GlobalScore >= 80);
+        Assert.Equal(100, score.GlobalScore);
+        Assert.Equal(40, score.StackScore);
+        Assert.Equal(30, score.SeniorityScore);
+        Assert.Equal(20, score.RoleScore);
+        Assert.Equal(10, score.DomainScore);
         Assert.NotEmpty(score.PositiveReasons);
         Assert.Empty(score.MissingSkills);
+    }
+
+    [Fact]
+    public void CalculateJobScore_GivesPartialRoleForAdjacentBackendAndFullstackJob()
+    {
+        var service = new ScoringService(null!, null!);
+        var profile = new CandidateProfileDto(
+            1,
+            "CV",
+            ["C#", ".NET"],
+            ["développeur backend"],
+            ["banque"],
+            "confirmé",
+            "Résumé",
+            DateTime.UtcNow,
+            DateTime.UtcNow);
+
+        var job = new JobDto(
+            1,
+            1,
+            "Banque Test",
+            "Banque",
+            "Développeur fullstack .NET",
+            "Strasbourg",
+            "Hybride",
+            "CDI",
+            null,
+            null,
+            null,
+            "fullstack",
+            ["C#", ".NET"],
+            "Développement web full stack",
+            "https://example.local",
+            DateTime.UtcNow,
+            null);
+
+        var score = service.CalculateJobScore(profile, job);
+
+        Assert.Equal(10, score.RoleScore);
+        Assert.Equal(30, score.SeniorityScore);
     }
 
     [Fact]
@@ -68,13 +112,13 @@ public sealed class ScoringServiceTests
 
         var score = service.CalculateCompanyScore(profile, company, jobs);
 
-        Assert.True(score.GlobalScore >= 85);
-        Assert.Equal(30, score.StackScore);
-        Assert.Equal(21, score.StrategicScore);
-        Assert.Equal(15, score.DomainScore);
-        Assert.Equal(10, score.RoleScore);
-        Assert.Equal(10, score.LocationScore);
-        Assert.Equal(10, score.SalaryScore);
+        Assert.Equal(100, score.GlobalScore);
+        Assert.Equal(70, score.StackScore);
+        Assert.Equal(30, score.DomainScore);
+        Assert.Equal(0, score.StrategicScore);
+        Assert.Equal(0, score.RoleScore);
+        Assert.Equal(0, score.LocationScore);
+        Assert.Equal(0, score.SalaryScore);
     }
 
     [Fact]
@@ -92,11 +136,12 @@ public sealed class ScoringServiceTests
 
         var score = service.CalculateCompanyScore(profile, company, Array.Empty<JobDto>());
 
-        Assert.True(score.GlobalScore >= 60);
+        Assert.Equal(100, score.GlobalScore);
+        Assert.Equal(70, score.StackScore);
+        Assert.Equal(30, score.DomainScore);
         Assert.Equal(0, score.StrategicScore);
         Assert.Equal(0, score.RoleScore);
-        Assert.Equal(10, score.SalaryScore);
-        Assert.Contains(score.NegativeReasons, reason => reason.Contains("Aucune offre", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, score.SalaryScore);
     }
 
     private static CandidateProfileDto CreateProfile()

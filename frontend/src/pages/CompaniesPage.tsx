@@ -339,12 +339,8 @@ function ScoreBreakdown({ score }: { score?: Score | null }) {
   }
 
   const items = [
-    ['Stack', score.stackScore, 30],
-    ['Opportunités', score.strategicScore, 25],
-    ['Domaine', score.domainScore, 15],
-    ['Postes', score.roleScore, 10],
-    ['Localisation', score.locationScore, 10],
-    ['Actionnabilité', score.salaryScore, 10]
+    ['Technique', score.stackScore, 70],
+    ['Domaine', score.domainScore, 30]
   ] as const;
 
   return (

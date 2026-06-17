@@ -132,14 +132,14 @@ public sealed class CsvImportService
                 }
 
                 var url = EmptyToNull(Field(reader, "url"));
-                if (await JobExistsAsync(connection, transaction, companyName, title, url))
+                var location = EmptyToNull(Field(reader, "location"));
+                var companyId = await FindOrCreateCompanyAsync(connection, transaction, companyName, location);
+
+                if (await JobExistsAsync(connection, transaction, companyId, title, url))
                 {
                     skipped++;
                     continue;
                 }
-
-                var location = EmptyToNull(Field(reader, "location"));
-                var companyId = await FindOrCreateCompanyAsync(connection, transaction, companyName, location);
 
                 var job = new JobImportRow(
                     companyId,
@@ -243,10 +243,10 @@ public sealed class CsvImportService
 
     private static async Task<bool> UpsertCompanyAsync(SqliteConnection connection, SqliteTransaction transaction, CompanyImportRow company)
     {
-        var existingId = await FindCompanyByNameAndCityAsync(connection, transaction, company.Name, company.City);
+        var existingCompany = await FindCompanyByNameAndCityAsync(connection, transaction, company.Name, company.City);
         var now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
-        if (existingId is null)
+        if (existingCompany is null)
         {
             using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
@@ -267,8 +267,10 @@ public sealed class CsvImportService
         update.Transaction = transaction;
         update.CommandText = """
             UPDATE companies
-            SET domain = $domain,
+            SET name = CASE WHEN $updateIdentity = 1 THEN $name ELSE name END,
+                domain = $domain,
                 secondary_domains = $secondaryDomains,
+                city = CASE WHEN $updateIdentity = 1 THEN $city ELSE city END,
                 address = $address,
                 latitude = $latitude,
                 longitude = $longitude,
@@ -284,51 +286,71 @@ public sealed class CsvImportService
             WHERE id = $id;
             """;
         AddCompanyParameters(update, company, now);
-        update.Parameters.AddWithValue("$id", existingId.Value);
+        update.Parameters.AddWithValue("$updateIdentity", existingCompany.Value.UpdateIdentity ? 1 : 0);
+        update.Parameters.AddWithValue("$id", existingCompany.Value.Id);
         await update.ExecuteNonQueryAsync();
         return true;
     }
 
-    private static async Task<int?> FindCompanyByNameAndCityAsync(SqliteConnection connection, SqliteTransaction transaction, string name, string city)
+    private static async Task<CompanyMatch?> FindCompanyByNameAndCityAsync(SqliteConnection connection, SqliteTransaction transaction, string name, string city)
+    {
+        return await FindCompanyMatchAsync(connection, transaction, name, city)
+            ?? await FindCompanyMatchAsync(connection, transaction, name, null);
+    }
+
+    private static async Task<CompanyMatch?> FindCompanyMatchAsync(SqliteConnection connection, SqliteTransaction transaction, string name, string? city)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = """
-            SELECT id, name
-            FROM companies
-            WHERE lower(city) = lower($city);
-            """;
-        command.Parameters.AddWithValue("$city", city);
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            command.CommandText = """
+                SELECT id, name, incomplete
+                FROM companies;
+                """;
+        }
+        else
+        {
+            command.CommandText = """
+                SELECT id, name, incomplete
+                FROM companies
+                WHERE lower(city) = lower($city);
+                """;
+            command.Parameters.AddWithValue("$city", city);
+        }
 
         var expectedName = NormalizeDedupeKey(name);
+        var expectedCanonicalName = NormalizeCompanyAliasKey(expectedName);
+        var matches = new List<CompanyMatchCandidate>();
         using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             var existingName = reader.IsDBNull(1) ? "" : reader.GetString(1);
-            if (NormalizeDedupeKey(existingName) == expectedName)
+            var existingNameKey = NormalizeDedupeKey(existingName);
+            if (NormalizeCompanyAliasKey(existingNameKey) == expectedCanonicalName)
             {
-                return reader.GetInt32(0);
+                var incomplete = reader.GetInt32(2) == 1;
+                matches.Add(new CompanyMatchCandidate(
+                    reader.GetInt32(0),
+                    existingNameKey == expectedCanonicalName ? 0 : 1,
+                    incomplete ? 1 : 0,
+                    incomplete || existingNameKey == expectedName));
             }
         }
 
-        return null;
+        var best = matches
+            .OrderBy(match => match.Rank)
+            .ThenBy(match => match.IncompleteRank)
+            .ThenBy(match => match.Id)
+            .FirstOrDefault();
+
+        return best is null ? null : new CompanyMatch(best.Id, best.UpdateIdentity);
     }
 
     private static async Task<int?> FindCompanyByNameAsync(SqliteConnection connection, SqliteTransaction transaction, string name)
     {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = """
-            SELECT id
-            FROM companies
-            WHERE lower(name) = lower($name)
-            ORDER BY incomplete ASC, id ASC
-            LIMIT 1;
-            """;
-        command.Parameters.AddWithValue("$name", name);
-
-        var value = await command.ExecuteScalarAsync();
-        return value is null ? null : Convert.ToInt32(value);
+        var match = await FindCompanyMatchAsync(connection, transaction, name, null);
+        return match?.Id;
     }
 
     private static async Task<int> FindOrCreateCompanyAsync(SqliteConnection connection, SqliteTransaction transaction, string companyName, string? location)
@@ -356,7 +378,7 @@ public sealed class CsvImportService
         return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
-    private static async Task<bool> JobExistsAsync(SqliteConnection connection, SqliteTransaction transaction, string companyName, string title, string? url)
+    private static async Task<bool> JobExistsAsync(SqliteConnection connection, SqliteTransaction transaction, int companyId, string title, string? url)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -365,11 +387,9 @@ public sealed class CsvImportService
             command.CommandText = """
                 SELECT id
                 FROM jobs
-                WHERE lower(company_name) = lower($companyName)
-                  AND lower(url) = lower($url)
+                WHERE lower(url) = lower($url)
                 LIMIT 1;
                 """;
-            command.Parameters.AddWithValue("$companyName", companyName);
             command.Parameters.AddWithValue("$url", url);
             return await command.ExecuteScalarAsync() is not null;
         }
@@ -377,12 +397,12 @@ public sealed class CsvImportService
         command.CommandText = """
             SELECT id
             FROM jobs
-            WHERE lower(company_name) = lower($companyName)
+            WHERE company_id = $companyId
               AND lower(title) = lower($title)
               AND coalesce(url, '') = ''
             LIMIT 1;
             """;
-        command.Parameters.AddWithValue("$companyName", companyName);
+        command.Parameters.AddWithValue("$companyId", companyId);
         command.Parameters.AddWithValue("$title", title);
         return await command.ExecuteScalarAsync() is not null;
     }
@@ -392,6 +412,19 @@ public sealed class CsvImportService
         return new string(RadarText.NormalizeSearch(value)
             .Where(char.IsLetterOrDigit)
             .ToArray());
+    }
+
+    private static string NormalizeCompanyAliasKey(string key)
+    {
+        return key switch
+        {
+            "capgeminiest" => "capgemini",
+            "davidsondigitalest" => "davidsonest",
+            "hagergroup" => "hager",
+            "objectwarestrasbourg" => "objectware",
+            "sfeirest" => "sfeir",
+            _ => key
+        };
     }
 
     private static async Task InsertJobAsync(SqliteConnection connection, SqliteTransaction transaction, JobImportRow job)
@@ -464,6 +497,10 @@ public sealed class CsvImportService
         string KnownStack,
         string? Notes,
         string? LogoUrl);
+
+    private readonly record struct CompanyMatch(int Id, bool UpdateIdentity);
+
+    private sealed record CompanyMatchCandidate(int Id, int Rank, int IncompleteRank, bool UpdateIdentity);
 
     private sealed record JobImportRow(
         int CompanyId,

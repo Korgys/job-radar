@@ -25,11 +25,14 @@ export function domainColor(domain: string) {
     industrie: '#6e7681',
     banque: '#d6a700',
     assurance: '#e0792f',
+    communication: '#0ea5e9',
+    conseil: '#a855f7',
     esn: '#2b73c8',
     saas: '#7b4cc2',
     'service public': '#2f9d63',
     energie: '#00a5a5',
     retail: '#c83232',
+    transport: '#475569',
     autre: '#222831'
   };
 

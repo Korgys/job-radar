@@ -43,6 +43,10 @@ La page `/map` utilise OpenStreetMap via Leaflet. Un acces reseau est necessaire
 
 Les donnees entreprises, offres, scores et rapports restent stockes localement.
 
+## Notation
+
+Le systeme de notation est decrit dans [scoring.md](scoring.md).
+
 ## Parcours de test
 
 1. Aller dans `/companies` et importer `data/samples/strasbourg-area-companies.csv`.
@@ -151,4 +155,5 @@ prompts/
   update-companies.md
   update-jobs.md
 README.md
+scoring.md
 ```
