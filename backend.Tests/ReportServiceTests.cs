@@ -1,3 +1,4 @@
+using JobRadarLocal.Data;
 using JobRadarLocal.Dtos;
 using JobRadarLocal.Services;
 using Xunit;
@@ -69,5 +70,36 @@ public sealed class ReportServiceTests
         Assert.Contains("NovaCare Systems", markdown);
         Assert.Contains("82/100", markdown);
         Assert.Contains("## Recommandations", markdown);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_CreatesDistinctFiles_WhenReportsAreGeneratedCloselyTogether()
+    {
+        var dataDirectory = Path.Combine(Path.GetTempPath(), $"job-radar-tests-{Guid.NewGuid():N}");
+
+        try
+        {
+            var paths = new AppPaths(dataDirectory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var queries = new RadarQueryService(database, paths);
+            var service = new ReportService(paths, database, queries);
+
+            var firstReport = await service.GenerateAsync();
+            var secondReport = await service.GenerateAsync();
+
+            Assert.NotEqual(firstReport.FileName, secondReport.FileName);
+            Assert.Matches(@"^job-radar-report-\d{8}-\d{6}-[a-f0-9]{6}\.md$", firstReport.FileName);
+            Assert.Matches(@"^job-radar-report-\d{8}-\d{6}-[a-f0-9]{6}\.md$", secondReport.FileName);
+            Assert.True(File.Exists(Path.Combine(paths.ReportsDirectory, firstReport.FileName)));
+            Assert.True(File.Exists(Path.Combine(paths.ReportsDirectory, secondReport.FileName)));
+        }
+        finally
+        {
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
+        }
     }
 }

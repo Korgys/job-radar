@@ -27,7 +27,8 @@ public sealed class ReportService
         var jobs = await _queries.GetJobsAsync();
         var profile = await _queries.GetLatestProfileAsync();
         var now = DateTime.Now;
-        var fileName = $"job-radar-report-{now:yyyyMMdd-HHmm}.md";
+        var uniqueSuffix = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture)[..6];
+        var fileName = $"job-radar-report-{now:yyyyMMdd-HHmmss}-{uniqueSuffix}.md";
         var path = Path.Combine(_paths.ReportsDirectory, fileName);
         var markdown = BuildMarkdown(now, companies, jobs, profile);
 
