@@ -129,6 +129,7 @@ public sealed class CsvImportService
         }
 
         var imported = 0;
+        var updated = 0;
         var skipped = 0;
         var errors = new List<ImportErrorDto>();
 
@@ -152,12 +153,6 @@ public sealed class CsvImportService
                 var location = EmptyToNull(Field(reader, "location"));
                 var companyId = await FindOrCreateCompanyAsync(connection, transaction, companyName, location);
 
-                if (await JobExistsAsync(connection, transaction, companyId, title, url))
-                {
-                    skipped++;
-                    continue;
-                }
-
                 var job = new JobImportRow(
                     companyId,
                     companyName,
@@ -174,8 +169,14 @@ public sealed class CsvImportService
                     url,
                     ParseDate(Field(reader, "publication_date")));
 
-                await InsertJobAsync(connection, transaction, job);
-                imported++;
+                if (await UpsertJobAsync(connection, transaction, job))
+                {
+                    updated++;
+                }
+                else
+                {
+                    imported++;
+                }
             }
             catch (Exception exception)
             {
@@ -185,7 +186,7 @@ public sealed class CsvImportService
         }
 
         transaction.Commit();
-        return new ImportResultDto(imported, 0, skipped, errors);
+        return new ImportResultDto(imported, updated, skipped, errors);
     }
 
     private static CsvReader CreateCsvReader(Stream stream)
@@ -395,7 +396,7 @@ public sealed class CsvImportService
         return Convert.ToInt32(await command.ExecuteScalarAsync());
     }
 
-    private static async Task<bool> JobExistsAsync(SqliteConnection connection, SqliteTransaction transaction, int companyId, string title, string? url)
+    private static async Task<int?> FindJobIdAsync(SqliteConnection connection, SqliteTransaction transaction, int companyId, string title, string? url)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -408,7 +409,8 @@ public sealed class CsvImportService
                 LIMIT 1;
                 """;
             command.Parameters.AddWithValue("$url", url);
-            return await command.ExecuteScalarAsync() is not null;
+            var existingId = await command.ExecuteScalarAsync();
+            return existingId is null ? null : Convert.ToInt32(existingId);
         }
 
         command.CommandText = """
@@ -421,7 +423,8 @@ public sealed class CsvImportService
             """;
         command.Parameters.AddWithValue("$companyId", companyId);
         command.Parameters.AddWithValue("$title", title);
-        return await command.ExecuteScalarAsync() is not null;
+        var existingUntitledId = await command.ExecuteScalarAsync();
+        return existingUntitledId is null ? null : Convert.ToInt32(existingUntitledId);
     }
 
     private static string NormalizeDedupeKey(string value)
@@ -445,12 +448,39 @@ public sealed class CsvImportService
         return string.Concat(tokens);
     }
 
-    private static async Task InsertJobAsync(SqliteConnection connection, SqliteTransaction transaction, JobImportRow job)
+    private static async Task<bool> UpsertJobAsync(SqliteConnection connection, SqliteTransaction transaction, JobImportRow job)
     {
+        var existingJobId = await FindJobIdAsync(connection, transaction, job.CompanyId, job.Title, job.Url);
         var now = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = """
+
+        if (existingJobId is not null)
+        {
+            using var update = connection.CreateCommand();
+            update.Transaction = transaction;
+            update.CommandText = """
+                UPDATE jobs
+                SET location = $location,
+                    remote_policy = $remotePolicy,
+                    contract = $contract,
+                    salary_min = $salaryMin,
+                    salary_max = $salaryMax,
+                    seniority = $seniority,
+                    job_type = $jobType,
+                    stack = $stack,
+                    description = $description,
+                    publication_date = $publicationDate,
+                    updated_at = $now
+                WHERE id = $id;
+                """;
+            AddJobParameters(update, job, now);
+            update.Parameters.AddWithValue("$id", existingJobId.Value);
+            await update.ExecuteNonQueryAsync();
+            return true;
+        }
+
+        using var insert = connection.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText = """
             INSERT INTO jobs
                 (company_id, company_name, title, location, remote_policy, contract, salary_min, salary_max, seniority,
                  job_type, stack, description, url, publication_date, created_at, updated_at)
@@ -458,6 +488,13 @@ public sealed class CsvImportService
                 ($companyId, $companyName, $title, $location, $remotePolicy, $contract, $salaryMin, $salaryMax, $seniority,
                  $jobType, $stack, $description, $url, $publicationDate, $now, $now);
             """;
+        AddJobParameters(insert, job, now);
+        await insert.ExecuteNonQueryAsync();
+        return false;
+    }
+
+    private static void AddJobParameters(SqliteCommand command, JobImportRow job, string now)
+    {
         command.Parameters.AddWithValue("$companyId", job.CompanyId);
         command.Parameters.AddWithValue("$companyName", job.CompanyName);
         command.Parameters.AddWithValue("$title", job.Title);
@@ -473,7 +510,6 @@ public sealed class CsvImportService
         command.Parameters.AddWithValue("$url", ToDb(job.Url));
         command.Parameters.AddWithValue("$publicationDate", ToDb(job.PublicationDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
         command.Parameters.AddWithValue("$now", now);
-        await command.ExecuteNonQueryAsync();
     }
 
     private static void AddCompanyParameters(SqliteCommand command, CompanyImportRow company, string now)

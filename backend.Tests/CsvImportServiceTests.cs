@@ -86,6 +86,94 @@ public sealed class CsvImportServiceTests
         }
     }
 
+    [Fact]
+    public async Task ImportJobsAsync_ImportsInitialJob()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var imports = new CsvImportService(database);
+            var queries = new RadarQueryService(database, paths);
+
+            const string jobsCsv = """
+                company_name,title,location,remote_policy,contract,salary_min,salary_max,seniority,job_type,stack,description,url,publication_date
+                Test Corp,Développeur C#,Strasbourg,hybrid,CDI,45000,55000,confirmed,backend,C#;.NET,Description,https://example.test/jobs/1,2026-01-15
+                """;
+
+            await using var jobsStream = new MemoryStream(Encoding.UTF8.GetBytes(jobsCsv));
+            var result = await imports.ImportJobsAsync(jobsStream);
+            var jobs = await queries.GetJobsAsync();
+
+            Assert.Equal(1, result.Imported);
+            Assert.Equal(0, result.Updated);
+            Assert.Equal(0, result.Skipped);
+            Assert.Single(jobs);
+            Assert.Equal("Développeur C#", jobs[0].Title);
+            Assert.Equal("Strasbourg", jobs[0].Location);
+            Assert.Equal(45000, jobs[0].SalaryMin);
+            Assert.Equal(55000, jobs[0].SalaryMax);
+            Assert.Equal(new[] { "C#", ".NET" }, jobs[0].Stack);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ImportJobsAsync_ReimportSameUrlUpdatesStackSalaryAndReportsUpdated()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var imports = new CsvImportService(database);
+            var queries = new RadarQueryService(database, paths);
+
+            const string initialJobsCsv = """
+                company_name,title,location,remote_policy,contract,salary_min,salary_max,seniority,job_type,stack,description,url,publication_date
+                Test Corp,Développeur C#,Strasbourg,hybrid,CDI,45000,55000,confirmed,backend,C#;.NET,Description initiale,https://example.test/jobs/1,2026-01-15
+                """;
+            const string updatedJobsCsv = """
+                company_name,title,location,remote_policy,contract,salary_min,salary_max,seniority,job_type,stack,description,url,publication_date
+                Test Corp,Développeur C#,Remote,remote,CDI,50000,65000,senior,fullstack,C#;.NET;Azure,Description mise à jour,https://example.test/jobs/1,2026-02-01
+                """;
+
+            await using var initialJobsStream = new MemoryStream(Encoding.UTF8.GetBytes(initialJobsCsv));
+            var initialResult = await imports.ImportJobsAsync(initialJobsStream);
+            await using var updatedJobsStream = new MemoryStream(Encoding.UTF8.GetBytes(updatedJobsCsv));
+            var updatedResult = await imports.ImportJobsAsync(updatedJobsStream);
+            var jobs = await queries.GetJobsAsync();
+
+            Assert.Equal(1, initialResult.Imported);
+            Assert.Equal(0, initialResult.Updated);
+            Assert.Equal(0, updatedResult.Imported);
+            Assert.Equal(1, updatedResult.Updated);
+            Assert.Equal(0, updatedResult.Skipped);
+            Assert.Single(jobs);
+            Assert.Equal("Remote", jobs[0].Location);
+            Assert.Equal("remote", jobs[0].RemotePolicy);
+            Assert.Equal(50000, jobs[0].SalaryMin);
+            Assert.Equal(65000, jobs[0].SalaryMax);
+            Assert.Equal("senior", jobs[0].Seniority);
+            Assert.Equal("fullstack", jobs[0].JobType);
+            Assert.Equal(new[] { "C#", ".NET", "Azure" }, jobs[0].Stack);
+            Assert.Equal("Description mise à jour", jobs[0].Description);
+            Assert.Equal(new DateTime(2026, 2, 1), jobs[0].PublicationDate);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("Caisse d'Épargne Grand Est Europe", "Caisse d'Epargne Grand Est Europe", "Strasbourg")]
     [InlineData("Capgemini", "Capgemini Est", "Schiltigheim")]
