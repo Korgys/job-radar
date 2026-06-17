@@ -65,6 +65,7 @@ public sealed record CandidateProfileDto(
 
 public sealed record UpdateCandidateProfileRequest(
     IReadOnlyList<string>? DetectedSkills,
+    IReadOnlyList<string>? DetectedRoles,
     IReadOnlyList<string>? DetectedDomains,
     string? DetectedSeniority);
 

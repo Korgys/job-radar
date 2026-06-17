@@ -42,10 +42,12 @@ public sealed class CvParsingServiceTests
 
             var updated = await parser.UpdateLatestProfileAsync(new UpdateCandidateProfileRequest(
                 ["C#", "React", "C#"],
+                ["architecte logiciel", "tech lead", "architecte logiciel"],
                 ["finance"],
                 "senior"));
 
             Assert.Equal(["C#", "React"], updated.DetectedSkills);
+            Assert.Equal(["architecte logiciel", "tech lead"], updated.DetectedRoles);
             Assert.Equal(["finance"], updated.DetectedDomains);
             Assert.Equal("senior", updated.DetectedSeniority);
             Assert.NotNull(updated.ExperiencesSummary);

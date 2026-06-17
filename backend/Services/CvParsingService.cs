@@ -96,12 +96,14 @@ public sealed class CvParsingService : ICvParsingService
         command.CommandText = """
             UPDATE candidate_profiles
             SET detected_skills = $skills,
+                detected_roles = $roles,
                 detected_domains = $domains,
                 detected_seniority = $seniority,
                 updated_at = $now
             WHERE id = $id;
             """;
         command.Parameters.AddWithValue("$skills", NormalizeProfileList(request.DetectedSkills));
+        command.Parameters.AddWithValue("$roles", NormalizeProfileList(request.DetectedRoles));
         command.Parameters.AddWithValue("$domains", NormalizeProfileList(request.DetectedDomains));
         command.Parameters.AddWithValue("$seniority", request.DetectedSeniority?.Trim() ?? "");
         command.Parameters.AddWithValue("$now", now);

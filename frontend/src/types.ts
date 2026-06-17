@@ -67,6 +67,7 @@ export type CandidateProfile = {
 
 export type UpdateProfileRequest = {
   detectedSkills: string[];
+  detectedRoles: string[];
   detectedDomains: string[];
   detectedSeniority: string;
 };

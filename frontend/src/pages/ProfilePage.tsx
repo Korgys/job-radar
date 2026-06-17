@@ -3,27 +3,38 @@ import type { FormEvent } from 'react';
 import { api } from '../api';
 import { ImportBox } from '../components/ImportBox';
 import type { CandidateProfile, Company, Job } from '../types';
-import { formatList, normalize, unique } from './shared';
+import { normalize, unique } from './shared';
 
 type ProfileDraft = {
   detectedSkills: string[];
+  detectedRoles: string[];
   detectedDomains: string[];
   detectedSeniority: string;
 };
 
 const emptyDraft: ProfileDraft = {
   detectedSkills: [],
+  detectedRoles: [],
   detectedDomains: [],
   detectedSeniority: ''
 };
 
 const seniorityOptions = ['', 'junior', 'confirmé', 'senior', 'lead'];
 
+const fallbackRoleOptions = [
+  'développeur backend',
+  'développeur fullstack',
+  'tech lead',
+  'lead developer',
+  'devops'
+];
+
 export function ProfilePage() {
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [draft, setDraft] = useState<ProfileDraft>(emptyDraft);
   const [skillOptions, setSkillOptions] = useState<string[]>([]);
   const [domainOptions, setDomainOptions] = useState<string[]>([]);
+  const [roleOptions, setRoleOptions] = useState<string[]>(fallbackRoleOptions);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -37,6 +48,7 @@ export function ProfilePage() {
 
   const skillSuggestions = useMemo(() => unique(skillOptions.concat(draft.detectedSkills)), [draft.detectedSkills, skillOptions]);
   const domainSuggestions = useMemo(() => unique(domainOptions.concat(draft.detectedDomains)), [domainOptions, draft.detectedDomains]);
+  const roleSuggestions = useMemo(() => unique(roleOptions.concat(draft.detectedRoles)), [roleOptions, draft.detectedRoles]);
 
   async function load() {
     try {
@@ -44,6 +56,7 @@ export function ProfilePage() {
       setProfile(nextProfile);
       setSkillOptions(buildSkillOptions(companies, jobs));
       setDomainOptions(buildDomainOptions(companies, jobs));
+      setRoleOptions(buildRoleOptions(jobs));
       setError('');
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Profil introuvable.');
@@ -108,7 +121,14 @@ export function ProfilePage() {
                 placeholder="Ajouter une compétence"
                 onChange={(detectedSkills) => setDraft({ ...draft, detectedSkills })}
               />
-              <p className="profile-readonly"><strong>Rôles :</strong> {formatList(profile.detectedRoles)}</p>
+              <EditableTagList
+                label="Rôles"
+                values={draft.detectedRoles}
+                options={roleSuggestions}
+                datalistId="profile-role-options"
+                placeholder="Ajouter un rôle"
+                onChange={(detectedRoles) => setDraft({ ...draft, detectedRoles })}
+              />
               <EditableTagList
                 label="Domaines"
                 values={draft.detectedDomains}
@@ -201,6 +221,7 @@ function EditableTagList({
 function toDraft(profile: CandidateProfile): ProfileDraft {
   return {
     detectedSkills: profile.detectedSkills,
+    detectedRoles: profile.detectedRoles,
     detectedDomains: profile.detectedDomains,
     detectedSeniority: profile.detectedSeniority
   };
@@ -212,4 +233,13 @@ function buildSkillOptions(companies: Company[], jobs: Job[]) {
 
 function buildDomainOptions(companies: Company[], jobs: Job[]) {
   return unique(companies.flatMap((company) => [company.domain, ...company.secondaryDomains]).concat(jobs.map((job) => job.companyDomain)));
+}
+
+function buildRoleOptions(jobs: Job[]) {
+  return unique(
+    jobs
+      .flatMap((job) => [job.title, job.jobType ?? ''])
+      .filter((value) => value.trim().length > 0)
+      .concat(fallbackRoleOptions)
+  );
 }
