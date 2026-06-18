@@ -21,9 +21,9 @@ public sealed class CsvImportServiceTests
             var queries = new RadarQueryService(database, paths);
 
             const string csv = """
-                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,glassdoor_url,known_stack,notes,logo_url
-                Test Corp,SaaS,Finance,Strasbourg,,48.58,7.75,,,,,C#;.NET,Note,
-                ,SaaS,,Strasbourg,,48.58,7.75,,,,,C#,,
+                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,known_stack,notes
+                Test Corp,SaaS,Finance,Strasbourg,,48.58,7.75,,,,C#;.NET,Note
+                ,SaaS,,Strasbourg,,48.58,7.75,,,,C#,
                 """;
 
             await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
@@ -60,8 +60,8 @@ public sealed class CsvImportServiceTests
                 AGILIA Technology,Développeur C#,Strasbourg,hybrid,CDI,,,confirmed,backend,C#;.NET,Description,https://example.test/agilia,
                 """;
             const string companiesCsv = """
-                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,glassdoor_url,known_stack,notes,logo_url
-                AGILIA Technology,ESN,Conseil IT,Entzheim,"5 rue Icare, 67960 Entzheim",48.5447,7.6525,https://agilia-technology.com,,https://fr.linkedin.com/company/agilia-technology,,C#;.NET,Note,
+                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,known_stack,notes
+                AGILIA Technology,ESN,Conseil IT,Entzheim,"5 rue Icare, 67960 Entzheim",48.5447,7.6525,https://agilia-technology.com,,https://fr.linkedin.com/company/agilia-technology,C#;.NET,Note
                 """;
 
             await using var jobsStream = new MemoryStream(Encoding.UTF8.GetBytes(jobsCsv));
@@ -98,8 +98,8 @@ public sealed class CsvImportServiceTests
             var imports = new CsvImportService(database);
 
             const string csv = """
-                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,glassdoor_url,known_stack,notes,logo_url
-                Test Corp,SaaS,Finance,Strasbourg,,91,7.75,https://example.test,,,,C#;.NET,Note,
+                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,known_stack,notes
+                Test Corp,SaaS,Finance,Strasbourg,,91,7.75,https://example.test,,,C#;.NET,Note
                 """;
 
             await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
@@ -131,8 +131,8 @@ public sealed class CsvImportServiceTests
             var imports = new CsvImportService(database);
 
             const string csv = """
-                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,glassdoor_url,known_stack,notes,logo_url
-                Test Corp,SaaS,Finance,Strasbourg,,48.58,7.75,not-a-url,,,,C#;.NET,Note,
+                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,known_stack,notes
+                Test Corp,SaaS,Finance,Strasbourg,,48.58,7.75,not-a-url,,,C#;.NET,Note
                 """;
 
             await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
@@ -331,8 +331,8 @@ public sealed class CsvImportServiceTests
             var queries = new RadarQueryService(database, paths);
 
             var companiesCsv = $$"""
-                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,glassdoor_url,known_stack,notes,logo_url
-                {{companyName}},ESN,Software,{{city}},Adresse,48.5737,7.7716,https://example.test,,,,C#;.NET,Note,
+                name,domain,secondary_domains,city,address,latitude,longitude,website,career_url,linkedin_url,known_stack,notes
+                {{companyName}},ESN,Software,{{city}},Adresse,48.5737,7.7716,https://example.test,,,C#;.NET,Note
                 """;
             var jobsCsv = $$"""
                 company_name,title,location,remote_policy,contract,salary_min,salary_max,seniority,job_type,stack,description,url,publication_date

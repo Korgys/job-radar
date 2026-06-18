@@ -25,7 +25,6 @@ public sealed record CompanyDto(
     string? Website,
     string? CareerUrl,
     string? LinkedinUrl,
-    string? GlassdoorUrl,
     IReadOnlyList<string> KnownStack,
     string? Notes,
     string? LogoUrl,

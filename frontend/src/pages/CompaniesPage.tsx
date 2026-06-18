@@ -231,16 +231,16 @@ function CompanyDetailHeader({ company }: { company: Company }) {
   );
 }
 
-function CompanyPriorityBadge({ score, compact = false }: { score?: Score | null; compact?: boolean }) {
+function CompanyPriorityBadge({ score }: { score?: Score | null }) {
   if (!score) {
-    return <div className={`priority-badge priority-empty ${compact ? 'priority-compact' : ''}`}>Priorité non calculée</div>;
+    return <div className="priority-badge priority-empty">Priorité non calculée</div>;
   }
 
   const level = priorityLevel(score.globalScore);
 
   return (
-    <div className={`priority-badge priority-${level.key} ${compact ? 'priority-compact' : ''}`} title={`${level.label} · ${score.globalScore}`}>
-      <strong>{compact ? level.shortLabel : level.label}</strong>
+    <div className={`priority-badge priority-${level.key}`} title={`${level.label} · ${score.globalScore}`}>
+      <strong>{level.label}</strong>
       <span>{score.globalScore}</span>
     </div>
   );
@@ -433,11 +433,11 @@ function ReasonList({ title, values, tone }: { title: string; values: string[]; 
 }
 
 function priorityLevel(score: number) {
-  if (score >= 75) return { key: 'top', label: 'Cible prioritaire', shortLabel: 'Forte' };
-  if (score >= 60) return { key: 'high', label: 'À suivre activement', shortLabel: 'Active' };
-  if (score >= 40) return { key: 'correct', label: 'Potentiel correct', shortLabel: 'Correct' };
-  if (score >= 20) return { key: 'watch', label: 'Entreprise à surveiller', shortLabel: 'Surveiller' };
-  return { key: 'low', label: 'Priorité actuelle faible', shortLabel: 'Faible' };
+  if (score >= 75) return { key: 'top', label: 'Cible prioritaire' };
+  if (score >= 60) return { key: 'high', label: 'À suivre activement' };
+  if (score >= 40) return { key: 'correct', label: 'Potentiel correct' };
+  if (score >= 20) return { key: 'watch', label: 'Entreprise à surveiller' };
+  return { key: 'low', label: 'Priorité actuelle faible' };
 }
 
 function initials(name: string) {

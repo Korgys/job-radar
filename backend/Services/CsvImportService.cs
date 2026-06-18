@@ -91,7 +91,6 @@ public sealed class CsvImportService
                 var website = EmptyToNull(Field(reader, "website"));
                 var careerUrl = EmptyToNull(Field(reader, "career_url"));
                 var linkedinUrl = EmptyToNull(Field(reader, "linkedin_url"));
-                var glassdoorUrl = EmptyToNull(Field(reader, "glassdoor_url"));
                 var logoUrl = EmptyToNull(Field(reader, "logo_url"));
                 var fieldValidationError = ValidateCompanyFields(
                     latitude,
@@ -99,7 +98,6 @@ public sealed class CsvImportService
                     ("website", website),
                     ("career_url", careerUrl),
                     ("linkedin_url", linkedinUrl),
-                    ("glassdoor_url", glassdoorUrl),
                     ("logo_url", logoUrl));
 
                 if (fieldValidationError is not null)
@@ -120,7 +118,6 @@ public sealed class CsvImportService
                     website,
                     careerUrl,
                     linkedinUrl,
-                    glassdoorUrl,
                     RadarText.CleanStackList(Field(reader, "known_stack")),
                     EmptyToNull(Field(reader, "notes")),
                     logoUrl);
@@ -254,7 +251,7 @@ public sealed class CsvImportService
 
     private static string Field(CsvReader reader, string name)
     {
-        return (reader.GetField(name) ?? "").Trim();
+        return reader.TryGetField<string>(name, out var value) ? (value ?? "").Trim() : "";
     }
 
     private static string? EmptyToNull(string? value)
@@ -355,10 +352,10 @@ public sealed class CsvImportService
             insert.CommandText = """
                 INSERT INTO companies
                     (name, domain, secondary_domains, city, address, latitude, longitude, website, career_url, linkedin_url,
-                     glassdoor_url, known_stack, notes, logo_url, incomplete, created_at, updated_at)
+                     known_stack, notes, logo_url, incomplete, created_at, updated_at)
                 VALUES
                     ($name, $domain, $secondaryDomains, $city, $address, $latitude, $longitude, $website, $careerUrl, $linkedinUrl,
-                     $glassdoorUrl, $knownStack, $notes, $logoUrl, 0, $now, $now);
+                     $knownStack, $notes, $logoUrl, 0, $now, $now);
                 """;
             AddCompanyParameters(insert, company, now);
             await insert.ExecuteNonQueryAsync();
@@ -379,7 +376,6 @@ public sealed class CsvImportService
                 website = $website,
                 career_url = $careerUrl,
                 linkedin_url = $linkedinUrl,
-                glassdoor_url = $glassdoorUrl,
                 known_stack = $knownStack,
                 notes = $notes,
                 logo_url = $logoUrl,
@@ -478,37 +474,6 @@ public sealed class CsvImportService
         command.Parameters.AddWithValue("$city", city);
         command.Parameters.AddWithValue("$now", now);
         return Convert.ToInt32(await command.ExecuteScalarAsync());
-    }
-
-    private static async Task<int?> FindJobIdAsync(SqliteConnection connection, SqliteTransaction transaction, int companyId, string title, string? url)
-    {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        if (!string.IsNullOrWhiteSpace(url))
-        {
-            command.CommandText = """
-                SELECT id
-                FROM jobs
-                WHERE lower(url) = lower($url)
-                LIMIT 1;
-                """;
-            command.Parameters.AddWithValue("$url", url);
-            var existingId = await command.ExecuteScalarAsync();
-            return existingId is null ? null : Convert.ToInt32(existingId);
-        }
-
-        command.CommandText = """
-            SELECT id
-            FROM jobs
-            WHERE company_id = $companyId
-              AND lower(title) = lower($title)
-              AND coalesce(url, '') = ''
-            LIMIT 1;
-            """;
-        command.Parameters.AddWithValue("$companyId", companyId);
-        command.Parameters.AddWithValue("$title", title);
-        var existingUntitledId = await command.ExecuteScalarAsync();
-        return existingUntitledId is null ? null : Convert.ToInt32(existingUntitledId);
     }
 
     private static string NormalizeDedupeKey(string value)
@@ -635,7 +600,6 @@ public sealed class CsvImportService
         command.Parameters.AddWithValue("$website", ToDb(company.Website));
         command.Parameters.AddWithValue("$careerUrl", ToDb(company.CareerUrl));
         command.Parameters.AddWithValue("$linkedinUrl", ToDb(company.LinkedinUrl));
-        command.Parameters.AddWithValue("$glassdoorUrl", ToDb(company.GlassdoorUrl));
         command.Parameters.AddWithValue("$knownStack", company.KnownStack);
         command.Parameters.AddWithValue("$notes", ToDb(company.Notes));
         command.Parameters.AddWithValue("$logoUrl", ToDb(company.LogoUrl));
@@ -658,7 +622,6 @@ public sealed class CsvImportService
         string? Website,
         string? CareerUrl,
         string? LinkedinUrl,
-        string? GlassdoorUrl,
         string KnownStack,
         string? Notes,
         string? LogoUrl);

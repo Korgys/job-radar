@@ -34,7 +34,6 @@ public sealed class DatabaseInitializer
                 website TEXT NULL,
                 career_url TEXT NULL,
                 linkedin_url TEXT NULL,
-                glassdoor_url TEXT NULL,
                 known_stack TEXT NOT NULL DEFAULT '',
                 notes TEXT NULL,
                 logo_url TEXT NULL,

@@ -147,7 +147,6 @@ public sealed class RadarQueryService
             ReadNullableString(reader, "website"),
             ReadNullableString(reader, "career_url"),
             ReadNullableString(reader, "linkedin_url"),
-            ReadNullableString(reader, "glassdoor_url"),
             RadarText.SplitList(ReadString(reader, "known_stack")),
             ReadNullableString(reader, "notes"),
             ReadNullableString(reader, "logo_url"),

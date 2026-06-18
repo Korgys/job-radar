@@ -13,7 +13,6 @@ public sealed class Company
     public string? Website { get; set; }
     public string? CareerUrl { get; set; }
     public string? LinkedinUrl { get; set; }
-    public string? GlassdoorUrl { get; set; }
     public string KnownStack { get; set; } = "";
     public string? Notes { get; set; }
     public string? LogoUrl { get; set; }

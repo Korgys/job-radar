@@ -24,7 +24,6 @@ export type Company = {
   website?: string | null;
   careerUrl?: string | null;
   linkedinUrl?: string | null;
-  glassdoorUrl?: string | null;
   knownStack: string[];
   notes?: string | null;
   logoUrl?: string | null;
