@@ -26,10 +26,10 @@ export function DashboardPage() {
     }
   }
 
-  async function generateReport() {
+  async function generateReport(allowUnscored = false) {
     clearMessage();
     try {
-      const report: ReportFile = await api.generateReport();
+      const report: ReportFile = await api.generateReport(allowUnscored);
       showSuccess(`Rapport généré : ${report.fileName}`);
       await load();
     } catch (error) {
@@ -61,7 +61,8 @@ export function DashboardPage() {
         </div>
         <div className="toolbar">
           <button type="button" onClick={recalculate}>Recalculer les scores</button>
-          <button type="button" onClick={generateReport}>Générer rapport</button>
+          <button type="button" onClick={() => void generateReport()}>Générer rapport</button>
+          <button type="button" className="secondary-action" onClick={() => void generateReport(true)}>Générer sans scoring</button>
         </div>
       </div>
 

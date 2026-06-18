@@ -40,7 +40,10 @@ export const api = {
     body: JSON.stringify(profile)
   }),
   recalculate: () => request<RecalculateResult>('/api/scoring/recalculate', { method: 'POST' }),
-  generateReport: () => request<ReportFile>('/api/reports/generate', { method: 'POST' })
+  generateReport: (allowUnscored = false) => {
+    const url = allowUnscored ? '/api/reports/generate?allowUnscored=true' : '/api/reports/generate';
+    return request<ReportFile>(url, { method: 'POST' });
+  }
 };
 
 async function upload(url: string, file: File): Promise<ImportResult> {

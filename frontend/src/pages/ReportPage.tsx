@@ -14,10 +14,10 @@ export function ReportPage() {
     setReports(await api.reports());
   }
 
-  async function generate() {
+  async function generate(allowUnscored = false) {
     setMessage('');
     try {
-      const report = await api.generateReport();
+      const report = await api.generateReport(allowUnscored);
       setMessage(`Rapport généré : ${report.fileName}`);
       await load();
     } catch (error) {
@@ -32,7 +32,10 @@ export function ReportPage() {
           <h1>Rapports</h1>
           <p className="muted">Fichiers Markdown générés dans data/reports.</p>
         </div>
-        <button type="button" onClick={generate}>Générer rapport</button>
+        <div className="toolbar">
+          <button type="button" onClick={() => void generate()}>Générer rapport</button>
+          <button type="button" className="secondary-action" onClick={() => void generate(true)}>Générer sans scoring</button>
+        </div>
       </div>
 
       {message && <p className="status">{message}</p>}
