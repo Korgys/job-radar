@@ -44,13 +44,48 @@ public sealed class CvParsingServiceTests
                 ["C#", "React", "C#"],
                 ["architecte logiciel", "tech lead", "architecte logiciel"],
                 ["finance"],
-                "senior"));
+                "senior",
+                ["Lyon"],
+                "hybride",
+                70000));
 
             Assert.Equal(["C#", "React"], updated.DetectedSkills);
             Assert.Equal(["architecte logiciel", "tech lead"], updated.DetectedRoles);
             Assert.Equal(["finance"], updated.DetectedDomains);
             Assert.Equal("senior", updated.DetectedSeniority);
             Assert.NotNull(updated.ExperiencesSummary);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateLatestProfileAsync_RejectsNegativeTargetSalary()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
+            var parser = new CvParsingService(database);
+
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("Développeur junior C# en banque."));
+            await parser.ImportAsync("cv.txt", stream);
+
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => parser.UpdateLatestProfileAsync(new UpdateCandidateProfileRequest(
+                ["C#"],
+                ["développeur backend"],
+                ["banque"],
+                "junior",
+                [],
+                null,
+                -1)));
+
+            Assert.Contains("salaire cible", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

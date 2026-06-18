@@ -87,6 +87,11 @@ public sealed class CvParsingService : ICvParsingService
 
     public async Task<CandidateProfileDto> UpdateLatestProfileAsync(UpdateCandidateProfileRequest request)
     {
+        if (request.TargetSalary is < 0)
+        {
+            throw new InvalidOperationException("Le salaire cible doit etre positif ou nul.");
+        }
+
         using var connection = _database.OpenConnection();
         var profileId = await GetLatestProfileIdAsync(connection)
             ?? throw new InvalidOperationException("Aucun CV importe.");

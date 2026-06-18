@@ -77,11 +77,18 @@ export function ProfilePage() {
 
     setMessage('');
     setError('');
+
+    const targetSalary = parseTargetSalary(draft.targetSalary);
+    if (targetSalary === undefined) {
+      setError('Le salaire cible doit être vide ou un nombre positif.');
+      return;
+    }
+
     try {
       const updated = await api.updateProfile({
         ...draft,
         remotePreference: draft.remotePreference.trim() || null,
-        targetSalary: draft.targetSalary.trim() ? Number(draft.targetSalary) : null
+        targetSalary
       });
       setProfile(updated);
       setMessage('Profil mis à jour.');
@@ -189,6 +196,16 @@ export function ProfilePage() {
       </div>
     </>
   );
+}
+
+function parseTargetSalary(value: string): number | null | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function EditableTagList({
