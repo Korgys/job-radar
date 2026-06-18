@@ -377,11 +377,35 @@ function groupCompanies(companies: Company[]) {
   return Array.from(groups.values());
 }
 
+const EXPECTED_MARKER_COLORS = new Set([
+  '#d84d8d',
+  '#6e7681',
+  '#d6a700',
+  '#e0792f',
+  '#0ea5e9',
+  '#a855f7',
+  '#2b73c8',
+  '#7b4cc2',
+  '#2f9d63',
+  '#00a5a5',
+  '#c83232',
+  '#475569',
+  '#222831'
+]);
+
 function markerIcon(color: string, count: number) {
-  const label = count > 1 ? String(count) : '';
+  const safeColor = EXPECTED_MARKER_COLORS.has(color) ? color : '#222831';
+  const marker = document.createElement('span');
+  // color must only come from domainColor, never directly from CSV/user imports.
+  marker.style.background = safeColor;
+
+  const label = document.createElement('b');
+  label.textContent = count > 1 ? String(count) : '';
+  marker.append(label);
+
   return L.divIcon({
     className: 'radar-marker',
-    html: `<span style="background:${color}"><b>${label}</b></span>`,
+    html: marker.outerHTML,
     iconSize: [28, 28],
     iconAnchor: [14, 28]
   });
