@@ -4,15 +4,13 @@ import { DashboardPage } from './pages/DashboardPage';
 import { JobsPage } from './pages/JobsPage';
 import { MapPage } from './pages/MapPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { ReportPage } from './pages/ReportPage';
 
 const routes = [
   { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { path: '/map', label: 'Carte', icon: 'map' },
   { path: '/companies', label: 'Entreprises', icon: 'companies' },
   { path: '/jobs', label: 'Offres', icon: 'jobs' },
-  { path: '/profile', label: 'Profil', icon: 'profile' },
-  { path: '/report', label: 'Rapport', icon: 'report' }
+  { path: '/profile', label: 'Profil', icon: 'profile' }
 ];
 
 export function App() {
@@ -76,7 +74,6 @@ function Icon({ name }: { name: string }) {
     companies: 'M4 20V6l8-3 8 3v14h-5v-6H9v6H4Zm5-9h2V8H9v3Zm4 0h2V8h-2v3Z',
     jobs: 'M8 6V4h8v2h4v14H4V6h4Zm2 0h4V5h-4v1Zm-4 5h12V8H6v3Z',
     profile: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0H5Z',
-    report: 'M6 3h9l3 3v15H6V3Zm8 1.5V7h2.5L14 4.5ZM8 11h8V9H8v2Zm0 4h8v-2H8v2Zm0 4h5v-2H8v2Z',
     collapse: 'M15.5 5 8.5 12l7 7-1.5 1.5L5.5 12 14 3.5 15.5 5Z',
     expand: 'M8.5 5 15.5 12l-7 7L10 20.5l8.5-8.5L10 3.5 8.5 5Z'
   };
@@ -102,8 +99,6 @@ function renderPage(path: string) {
       return <JobsPage />;
     case '/profile':
       return <ProfilePage />;
-    case '/report':
-      return <ReportPage />;
     default:
       return <DashboardPage />;
   }

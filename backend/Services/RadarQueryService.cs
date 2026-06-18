@@ -133,40 +133,6 @@ public sealed class RadarQueryService
             compatibleJobCount);
     }
 
-    public async Task<IReadOnlyList<ReportFileDto>> GetReportsAsync()
-    {
-        using var connection = _database.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT file_name, created_at
-            FROM report_files
-            ORDER BY created_at DESC;
-            """;
-
-        var reports = new List<ReportFileDto>();
-        using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            reports.Add(new ReportFileDto(
-                ReadString(reader, "file_name"),
-                ReadDateTime(reader, "created_at") ?? DateTime.MinValue));
-        }
-
-        return reports;
-    }
-
-    public string? GetReportPath(string fileName)
-    {
-        var safeName = Path.GetFileName(fileName);
-        if (!safeName.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var path = Path.Combine(_paths.ReportsDirectory, safeName);
-        return File.Exists(path) ? path : null;
-    }
-
     private static CompanyDto MapCompany(SqliteDataReader reader)
     {
         return new CompanyDto(

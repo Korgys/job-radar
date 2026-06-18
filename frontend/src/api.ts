@@ -1,4 +1,4 @@
-import type { CandidateProfile, Company, DashboardStats, ImportResult, Job, RecalculateResult, ReportFile, UpdateProfileRequest } from './types';
+import type { CandidateProfile, Company, DashboardStats, ImportResult, Job, RecalculateResult, UpdateProfileRequest } from './types';
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
@@ -30,7 +30,6 @@ export const api = {
     }
     return (await response.json()) as CandidateProfile;
   },
-  reports: () => request<ReportFile[]>('/api/reports'),
   uploadCompanies: (file: File) => upload('/api/companies/import-csv', file),
   uploadJobs: (file: File) => upload('/api/jobs/import-csv', file),
   uploadProfile: (file: File) => uploadProfile(file),
@@ -39,11 +38,7 @@ export const api = {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(profile)
   }),
-  recalculate: () => request<RecalculateResult>('/api/scoring/recalculate', { method: 'POST' }),
-  generateReport: (allowUnscored = false) => {
-    const url = allowUnscored ? '/api/reports/generate?allowUnscored=true' : '/api/reports/generate';
-    return request<ReportFile>(url, { method: 'POST' });
-  }
+  recalculate: () => request<RecalculateResult>('/api/scoring/recalculate', { method: 'POST' })
 };
 
 async function upload(url: string, file: File): Promise<ImportResult> {

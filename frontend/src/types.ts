@@ -93,10 +93,6 @@ export type DashboardStats = {
   compatibleJobCount: number;
 };
 
-export type ReportFile = {
-  fileName: string;
-  createdAt: string;
-};
 
 export type RecalculateResult = {
   companyScores: number;

@@ -75,7 +75,6 @@ public sealed record UpdateCandidateProfileRequest(
     string? RemotePreference,
     decimal? TargetSalary);
 
-public sealed record ReportFileDto(string FileName, DateTime CreatedAt);
 
 public sealed record DashboardStatsDto(
     int CompanyCount,

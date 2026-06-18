@@ -23,7 +23,6 @@ builder.Services.AddSingleton<RadarQueryService>();
 builder.Services.AddSingleton<CsvImportService>();
 builder.Services.AddSingleton<ICvParsingService, CvParsingService>();
 builder.Services.AddSingleton<ScoringService>();
-builder.Services.AddSingleton<ReportService>();
 
 var app = builder.Build();
 
@@ -119,40 +118,6 @@ app.MapPost("/api/scoring/recalculate", async (ScoringService scoring) =>
     {
         return Results.BadRequest(new { error = exception.Message });
     }
-});
-
-app.MapPost("/api/reports/generate", async (bool allowUnscored, ScoringService scoring, ReportService reports) =>
-{
-    try
-    {
-        await scoring.RecalculateAsync();
-        return Results.Ok(await reports.GenerateAsync(scoringIsCurrent: true));
-    }
-    catch (InvalidOperationException) when (allowUnscored)
-    {
-        return Results.Ok(await reports.GenerateAsync(scoringIsCurrent: false));
-    }
-    catch (InvalidOperationException)
-    {
-        return Results.BadRequest(new { error = "Importez un CV avant de générer un rapport scoré." });
-    }
-});
-
-app.MapGet("/api/reports", async (RadarQueryService queries) =>
-{
-    return Results.Ok(await queries.GetReportsAsync());
-});
-
-app.MapGet("/api/reports/{fileName}", async (string fileName, RadarQueryService queries) =>
-{
-    var path = queries.GetReportPath(fileName);
-    if (path is null)
-    {
-        return Results.NotFound(new { error = "Rapport introuvable." });
-    }
-
-    var content = await File.ReadAllTextAsync(path);
-    return Results.Text(content, "text/markdown; charset=utf-8");
 });
 
 app.Run();

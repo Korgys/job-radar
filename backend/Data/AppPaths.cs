@@ -11,19 +11,16 @@ public sealed class AppPaths
     {
         DataDirectory = dataDirectory;
         SamplesDirectory = Path.Combine(dataDirectory, "samples");
-        ReportsDirectory = Path.Combine(dataDirectory, "reports");
         DatabasePath = Path.Combine(dataDirectory, "job-radar-local.db");
     }
 
     public string DataDirectory { get; }
     public string SamplesDirectory { get; }
-    public string ReportsDirectory { get; }
     public string DatabasePath { get; }
 
     public void EnsureDirectories()
     {
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(SamplesDirectory);
-        Directory.CreateDirectory(ReportsDirectory);
     }
 }

@@ -1,6 +1,6 @@
 # Job Radar Local
 
-Application web locale V0.3 pour importer des entreprises, des offres et un CV, ajuster le profil extrait, calculer des scores de compatibilite, visualiser les entreprises sur une carte Leaflet avec OpenStreetMap et generer un rapport Markdown.
+Application web locale V0.3 pour importer des entreprises, des offres et un CV, ajuster le profil extrait, calculer des scores de compatibilite, visualiser les entreprises sur une carte Leaflet avec OpenStreetMap et copier une shortlist Markdown.
 
 ## Prerequis
 
@@ -43,7 +43,7 @@ La page `/map` utilise OpenStreetMap via Leaflet. Un acces reseau est necessaire
 
 Le filtre `Offres` permet d'afficher toutes les entreprises, uniquement celles avec offres liees, ou uniquement celles sans offre. Le detail d'une entreprise liste ses offres liees.
 
-Les donnees entreprises, offres, scores et rapports restent stockes localement.
+Les donnees entreprises, offres et scores restent stockes localement.
 
 ## Notation
 
@@ -57,13 +57,7 @@ Le systeme de notation est decrit dans [scoring.md](scoring.md).
 4. Ajuster si besoin la seniorite, les competences ou les domaines dans `Profil extrait`.
 5. Recalculer les scores depuis `/dashboard` ou `/jobs`.
 6. Aller dans `/map` pour voir les entreprises, filtrer les resultats et consulter les offres liees.
-7. Aller dans `/report` et generer un rapport Markdown.
-
-Les rapports sont ecrits dans :
-
-```txt
-data/reports/
-```
+7. Revenir dans `/dashboard` pour consulter le top 10 des offres et copier la shortlist en Markdown.
 
 La base SQLite locale est creee automatiquement dans :
 
@@ -167,7 +161,6 @@ data/
     strasbourg-area-companies.csv
     strasbourg-area-jobs.csv
     cv.txt
-  reports/
 prompts/
   update-companies.md
   update-jobs.md

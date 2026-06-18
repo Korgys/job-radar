@@ -31,19 +31,26 @@ public sealed class ReportGenerationTests
     }
 
     [Fact]
-    public void BuildMarkdown_WhenUnscored_AddsClearWarning()
+    public void Initialize_DoesNotCreateReportFilesTable()
     {
-        var service = new ReportService(null!, null!, null!);
+        var directory = CreateTempDirectory();
+        try
+        {
+            var paths = new AppPaths(directory);
+            var database = new Database(paths);
+            new DatabaseInitializer(database, paths).Initialize();
 
-        var markdown = service.BuildMarkdown(
-            DateTime.Parse("2026-06-16T10:00:00"),
-            [],
-            [],
-            null,
-            scoringIsCurrent: false);
+            using var connection = database.OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'report_files';";
 
-        Assert.Contains("Rapport non scoré", markdown);
-        Assert.Contains("ne contient pas de scoring à jour", markdown);
+            Assert.Equal(0L, command.ExecuteScalar());
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static string CreateTempDirectory()

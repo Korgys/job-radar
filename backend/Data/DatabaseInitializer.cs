@@ -117,13 +117,6 @@ public sealed class DatabaseInitializer
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY(job_id) REFERENCES jobs(id) ON DELETE CASCADE
             );
-
-            CREATE TABLE IF NOT EXISTS report_files (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_name TEXT NOT NULL UNIQUE,
-                path TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            );
             """;
         command.ExecuteNonQuery();
         EnsureCandidatePreferenceColumns(connection);
